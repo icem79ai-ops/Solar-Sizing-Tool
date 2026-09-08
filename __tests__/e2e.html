@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="th">
+<head><meta charset="UTF-8"><title>E2E test — PEA Solar Sizing Tool</title></head>
+<body>
+<iframe id="app" src="../index.html" style="width:100%;height:95vh"></iframe>
+<pre id="result" style="position:fixed;right:6px;top:6px;background:#111;color:#7f7;padding:10px;font-size:12px;max-height:70vh;overflow:auto;z-index:999;border:1px solid #444"></pre>
+<script>
+(function () {
+    var out = [];
+    function log(t, ok) { out.push((ok ? '[OK] ' : '[FAIL] ') + t); document.getElementById('result').innerHTML = out.join('\n'); try { console.log('[DRV] ' + (ok ? 'PASS' : 'FAIL') + ' ' + t); } catch (e) {} }
+
+    var W = null;
+    function doc() { return W.document; }
+    function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+    function hasText(sel, txt) {
+        var el = doc().querySelector(sel);
+        return el && /[\s\S]*/.test(el.textContent) && el.textContent.indexOf(txt) >= 0;
+    }
+    function textOf(sel) { var el = doc().querySelector(sel); return el ? el.textContent.replace(/\s+/g, ' ').trim() : ''; }
+    function click(sel) { var el = doc().querySelector(sel); if (el) el.click(); }
+    function canvasPixels(sel) {
+        var cv = doc().querySelector(sel);
+        if (!cv || !cv.width || !cv.height) return false;
+        try {
+            var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+            for (var i = 3; i < d.length; i += 4) { if (d[i] > 0) return true; }
+        } catch (e) {}
+        return false;
+    }
+
+    async function setFiles() {
+        var base = decodeURI(location.href).replace(/__tests__\/e2e\.html$/, '');
+        var names = [
+            ['../Downloads/kW02001943440604092026003043.xls', 'kW02001943440604092026003043.xls'],
+            ['../Downloads/kW02001943440604092026003043_files/sheet001.htm', 'sheet001.htm']
+        ];
+        var list = [];
+        for (var i = 0; i < names.length; i++) {
+            try {
+                var r = await fetch(base + names[i][0]);
+                log('fetch ' + names[i][1] + ' -> ' + r.status, r.ok);
+                if (!r.ok) continue;
+                var buf = await r.arrayBuffer();
+                list.push(new File([buf], names[i][1]));
+            } catch (e) {
+                log('fetch ' + names[i][1] + ' threw ' + e.message, false);
+            }
+        }
+        log('files ready: ' + list.length + '/2', list.length === 2);
+        if (!list.length) return;
+        var input = doc().getElementById('file-input');
+        var dt = new DataTransfer();
+        list.forEach(function (f) { dt.items.add(f); });
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    async function run() {
+        var tries = 0;
+        while (!(W && W.document && W.document.getElementById('file-input'))) {
+            W = document.getElementById('app').contentWindow;
+            if (++tries > 30) { log('iframe app not ready', false); return; }
+            await wait(300);
+        }
+        await wait(500);
+        log('app iframe loaded', true);
+        await setFiles();
+        await wait(300);
+        var loadedPoll = 0;
+        while (doc().getElementById('file-info').hidden && loadedPoll++ < 40) { await wait(500); }
+        log('data loaded (file-info shown)', !doc().getElementById('file-info').hidden);
+        log('meta has content: ' + (textOf('#file-meta').length > 0), textOf('#file-meta').length > 0);
+        log('summary: ' + textOf('#file-summary'), true);
+        log('bill: ' + textOf('#bill-metrics'), true);
+        log('CHECK bill ~36,268', textOf('#bill-metrics').indexOf('36,268') >= 0);
+        log('CHECK canvas analysis drawn', canvasPixels('#analysis-chart'));
+
+        click('button[data-tab="sizing"]');
+        await wait(800);
+        log('CHECK rec 12 kWp', textOf('#rec-metrics').indexOf('12 kWp') >= 0);
+        log('CHECK 9 rows', doc().querySelectorAll('#sizing-table tbody tr').length === 9);
+        log('CHECK canvas sizing drawn', canvasPixels('#sizing-chart'));
+
+        click('#sizing-mode .opt[data-mode="hybrid"]');
+        await wait(800);
+        log('hybrid wrap hidden=' + (doc().getElementById('sizing-battery-wrap').style.display === 'none'), true);
+
+        click('button[data-tab="savings"]');
+        await wait(800);
+        log('CHECK save 5kWp ~4,046/เดือน', textOf('#save-metrics').indexOf('4,045') >= 0);
+        log('CHECK canvas daily drawn', canvasPixels('#daily-chart'));
+
+        var mv = doc().getElementById('sav-size');
+        mv.value = '10'; mv.dispatchEvent(new Event('input', { bubbles: true }));
+        await wait(800);
+        log('CHECK save10 6,644', textOf('#save-metrics').indexOf('6,644') >= 0);
+
+        click('#sav-mode .opt[data-mode="hybrid"]');
+        await wait(800);
+        var bv = doc().getElementById('sav-battery');
+        bv.value = '15'; bv.dispatchEvent(new Event('input', { bubbles: true }));
+        await wait(1000);
+        log('CHECK hybrid10+15 7,968', textOf('#save-metrics').indexOf('7,968') >= 0);
+        log('CHECK soc shown', doc().getElementById('soc-card').style.display !== 'none');
+        log('CHECK canvas soc drawn', canvasPixels('#soc-chart'));
+
+        log('E2E complete', true);
+    }
+
+    window.addEventListener('load', function () { run(); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+# Test/build artifacts not wanted in the repo
+__tests__.zip
+*.log
