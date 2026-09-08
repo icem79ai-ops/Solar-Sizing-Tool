@@ -219,10 +219,11 @@
     }
 
     function timeLabels() {
-        var out = new Array(96), h4 = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
+        // 96 ช่วง ๆ ละ 15 นาที → index i = เวลา i*15 นาที; ติดป้ายเฉพาะจุดที่เป็นชั่วโมงตรง ทุก 4 ชม. (00,04,08,12,16,20)
+        var out = new Array(96);
         for (var i = 0; i < 96; i++) {
-            var idx = Math.floor(i / 4);
-            out[i] = (i % 4 === 0 && h4[idx]) ? h4[idx] : '';
+            var hh = Math.floor(i / 4);
+            out[i] = (i % 4 === 0 && hh % 4 === 0) ? (hh < 10 ? '0' + hh : hh) + ':00' : '';
         }
         return out;
     }
