@@ -133,6 +133,7 @@ body {
 
 /* ---------- form controls ---------- */
 .lbl { display: block; font-size: .8rem; color: var(--muted); margin: 12px 0 5px; }
+.lbl.sm { margin: 6px 0 3px; font-size: .72rem; }
 select, input[type="number"], input[type="text"] {
   width: 100%; padding: 9px 10px;
   background: var(--card2); color: var(--txt);

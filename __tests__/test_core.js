@@ -53,6 +53,21 @@ if (!tou.error) {
     // battery recommendation for 12 kWp -> 15 kWh
     const rec = Core.recommendBattery(tou, 12, { settings: S });
     ok('TOU: recommend battery 15 kWh (12kWp)', rec.bestCapacityKwh === 15, rec.bestCapacityKwh + ' kWh');
+
+    // ---- tariff modes (analysis bill) ----
+    const tProg = Core.cloneSettings(S); tProg.tariff.mode = 'progressive';
+    const tFlat = Core.cloneSettings(S); tFlat.tariff.mode = 'flat';
+    const aProg = Core.analyzeData(tou, tProg.tariff);
+    const aFlat = Core.analyzeData(tou, tFlat.tariff);
+    ok('PROG: analysis bill ~39,187', near(aProg.bill.grandTotal, 39187, 15), aProg.bill.grandTotal.toFixed(2));
+    ok('PROG: service fee = 24.62', near(aProg.bill.serviceFee, 24.62, 0.01), aProg.bill.serviceFee.toFixed(2));
+    ok('PROG: energy ~35,273', near(aProg.bill.energyCharge, 35273, 15), aProg.bill.energyCharge.toFixed(2));
+    ok('FLAT: analysis bill ~38,040', near(aFlat.bill.grandTotal, 38040, 15), aFlat.bill.grandTotal.toFixed(2));
+    ok('PROG: custom tier changes bill (tier1=1.0)',
+        near(Core.progressiveCharge(8167, [[15, 1], [25, 2.9882], [200, 3], [400, 4.1584], [null, 4.3583]]), 35252.48, 0.5),
+        Core.progressiveCharge(8167, [[15, 1], [25, 2.9882], [200, 3], [400, 4.1584], [null, 4.3583]]).toFixed(2));
+    ok('PROG: progressive > TOU > flat ordering', aProg.bill.grandTotal > 38040 && aFlat.bill.grandTotal > 36269,
+        aProg.bill.grandTotal.toFixed(0) + ' / ' + aFlat.bill.grandTotal.toFixed(0));
 }
 
 // ---------- household BIG file (ISO 1-day) ----------

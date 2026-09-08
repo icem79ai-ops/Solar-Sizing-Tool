@@ -187,10 +187,20 @@
             metric('พลังงาน/เดือน', fmtNum(d.totalKwh * 30 / Math.max(1, d.nDays), 0) + ' kWh', 'PSH เดือนนี้ ≈ ' + prop);
         $('bill-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffLabel(S.tariff.mode) + ' — ' + basis.note;
 
+        var mode = S.tariff.mode;
+        var head = '';
+        if (mode === 'progressive' || mode === 'flat') {
+            head = '<div>พลังงานรวม <b>' + fmtNum(ana.bill.totalKwh, 1) + ' kWh</b></div>' +
+                (mode === 'progressive'
+                    ? '<div>ค่าไฟพลังงาน (อัตราก้าวหน้า) <b>' + money(ana.bill.energyCharge) + '</b></div>'
+                    : '<div>ค่าไฟพลังงาน (Flat) <b>' + money(ana.bill.energyCharge) + '</b></div>');
+        } else {
+            head = '<div>พลังงาน On-Peak <b>' + fmtNum(ana.onPeakKwh, 1) + ' kWh</b></div>' +
+                '<div>พลังงาน Off-Peak <b>' + fmtNum(ana.offPeakKwh, 1) + ' kWh</b></div>' +
+                '<div>ค่าไฟพลังงาน (On-Peak ' + S.tariff.onPeakRate + ' / Off-Peak ' + S.tariff.offPeakRate + ') <b>' + money(ana.bill.energyCharge) + '</b></div>';
+        }
         $('bill-detail').innerHTML =
-            '<div>พลังงาน On-Peak <b>' + fmtNum(ana.onPeakKwh, 1) + ' kWh</b></div>' +
-            '<div>พลังงาน Off-Peak <b>' + fmtNum(ana.offPeakKwh, 1) + ' kWh</b></div>' +
-            '<div>ค่าไฟพลังงาน <b>' + money(ana.bill.energyCharge) + '</b></div>' +
+            head +
             '<div>ค่า Ft <b>' + money(ana.bill.ftCharge) + '</b></div>' +
             '<div>ค่าบริการ <b>' + money(ana.bill.serviceFee) + '</b></div>' +
             '<div>VAT <b>' + money(ana.bill.vat) + '</b></div>' +
@@ -559,19 +569,33 @@
 
     // ---------------------------------------------------------------- settings modal
     function openSettings() {
-        var s = state.settings;
+        var s = state.settings, t = s.tariff;
         $('set-tariff-mode').value = state.tariffMode;
-        $('set-on-rate').value = s.tariff.onPeakRate;
-        $('set-off-rate').value = s.tariff.offPeakRate;
-        $('set-flat-rate').value = s.tariff.flatRate;
-        $('set-service').value = s.tariff.serviceFee;
-        $('set-ft').value = s.tariff.ftRate;
-        $('set-vat').value = s.tariff.vatRate * 100;
+        $('set-on-rate').value = t.onPeakRate;
+        $('set-off-rate').value = t.offPeakRate;
+        $('set-flat-rate').value = t.flatRate;
+        $('set-service').value = t.serviceFee;
+        $('set-ft').value = t.ftRate;
+        $('set-vat').value = t.vatRate * 100;
         $('set-solar-price').value = s.solar.pricePerKwp;
         $('set-loss').value = s.solar.systemLosses * 100;
         $('set-batt-price').value = s.battery.pricePerKwh;
-        $('set-tou-rate').style.display = state.tariffMode === 'auto' || state.tariffMode === 'tou' ? '' : 'none';
+        var tiers = t.progTiers || [];
+        var ids = ['set-prog-1', 'set-prog-2', 'set-prog-3', 'set-prog-4', 'set-prog-5'];
+        for (var i = 0; i < ids.length; i++) {
+            $(ids[i]).value = tiers[i] ? tiers[i][1] : '';
+        }
+        $('set-prog-service').value = t.progServiceFee;
+        showTariffFields(state.tariffMode);
         $('modal').hidden = false;
+    }
+    function showTariffFields(mode) {
+        var isTou = mode === 'auto' || mode === 'tou';
+        $('set-tou-rate').style.display = isTou ? '' : 'none';
+        $('set-prog-rate').style.display = mode === 'progressive' ? '' : 'none';
+        $('set-flat-rate').parentNode.querySelector('label').style.display = mode === 'flat' ? '' : 'none';
+        var flatInput = $('set-flat-rate');
+        flatInput.style.display = mode === 'flat' ? '' : 'none';
     }
     function saveSettingsUi() {
         var s = state.settings;
@@ -582,6 +606,13 @@
         s.tariff.serviceFee = parseFloat($('set-service').value) || 0;
         s.tariff.ftRate = parseFloat($('set-ft').value) || 0;
         s.tariff.vatRate = (parseFloat($('set-vat').value) || 0) / 100;
+        var tiers = [[15, parseFloat($('set-prog-1').value) || 0],
+            [25, parseFloat($('set-prog-2').value) || 0],
+            [200, parseFloat($('set-prog-3').value) || 0],
+            [400, parseFloat($('set-prog-4').value) || 0],
+            [null, parseFloat($('set-prog-5').value) || 0]];
+        s.tariff.progTiers = tiers;
+        s.tariff.progServiceFee = parseFloat($('set-prog-service').value) || 0;
         s.solar.pricePerKwp = parseFloat($('set-solar-price').value) || 40000;
         s.solar.systemLosses = (parseFloat($('set-loss').value) || 25) / 100;
         s.battery.pricePerKwh = parseFloat($('set-batt-price').value) || 9000;
@@ -680,8 +711,9 @@
         $('btn-settings').addEventListener('click', openSettings);
         $('btn-close-settings').addEventListener('click', function () { $('modal').hidden = true; });
         $('set-tariff-mode').addEventListener('change', function () {
-            var v = this.value;
-            $('set-tou-rate').style.display = v === 'auto' || v === 'tou' ? '' : 'none';
+            state.tariffMode = this.value;
+            showTariffFields(this.value);
+            if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
         });
         $('btn-save-settings').addEventListener('click', saveSettingsUi);
         $('btn-backup').addEventListener('click', backup);
