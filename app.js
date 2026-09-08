@@ -1,4 +1,4 @@
-/* PEA Solar Sizing Tool — UI layer (needs Core + Chart.js + SheetJS loaded) */
+/* Solar Sizing Tool — UI layer (needs Core + Chart.js + SheetJS loaded) */
 (function () {
     'use strict';
 
@@ -523,7 +523,7 @@
         var S = effectiveSettings();
         var res = Core.computeSizing(state.data, { settings: S, mode: state.sizingMode });
         var aoa = [
-            ['☀️ PEA Solar Sizing Tool — ผลการคำนวณ'],
+            ['☀️ Solar Sizing Tool — ผลการคำนวณ'],
             ['อัตรา', tariffLabel(S.tariff.mode), 'โหมด', state.sizingMode === 'hybrid' ? 'Hybrid' : 'On-Grid'],
             ['ขนาด (kWp)', 'ผลิต (kWh)', 'ใช้เอง (kWh)', 'เหลือทิ้ง (kWh)', 'ประหยัด/เดือน (฿)', 'ลด (%)', 'คืนทุน (เดือน)', 'Self-CR (%)', 'ลงทุน (฿)']
         ];
@@ -540,7 +540,7 @@
         ws['!cols'] = aoa[0].map(function () { return { wch: 16 }; });
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Sizing');
-        XLSX.writeFile(wb, 'pea-solar-sizing.xlsx');
+        XLSX.writeFile(wb, 'solar-sizing.xlsx');
         toast('ส่งออก Excel สำเร็จ');
     }
     function exportCsv() {
@@ -554,7 +554,7 @@
                 isFinite(r.paybackMonths) ? r.paybackMonths.toFixed(0) : '', (r.selfConsumptionRatio * 100).toFixed(1),
                 r.investment.toFixed(0)].join(','));
         });
-        download('pea-solar-sizing.csv', '\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+        download('solar-sizing.csv', '\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8');
         toast('ส่งออก CSV สำเร็จ');
     }
     function download(name, content, type) {
@@ -623,7 +623,7 @@
         toast('บันทึกการตั้งค่าแล้ว');
     }
     function backup() {
-        download('pea-solar-settings-' + new Date().toISOString().slice(0, 10) + '.json',
+        download('solar-settings-' + new Date().toISOString().slice(0, 10) + '.json',
             JSON.stringify(JSON.parse(localStorage.getItem('pso_settings_v2') || '{}'), null, 2),
             'application/json');
         toast('สำรองข้อมูลเสร็จ (ดาวน์โหลดแล้ว)');

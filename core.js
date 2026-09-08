@@ -1,4 +1,4 @@
-/* PEA Solar Sizing Tool — core engine (pure JS, no DOM)
+/* Solar Sizing Tool — core engine (pure JS, no DOM)
  * Port of solar-sizing-tool Python modules:
  *   solar_model, tariff, battery_model, calculator, amr_parser
  * Runs in browser (offline) and in Node for tests.
@@ -516,7 +516,7 @@
 
     // ---------------------------------------------------------------- parser
     // entry: array of { name, content(Buffer|Uint8Array|string) }
-    // PEA export = HTML frameset (.xls) + files\sheet001.htm (table)
+    // AMR export = HTML frameset (.xls) + files\sheet001.htm (table)
     // household files = .xlsx / .csv with Timestamp | Power Consumption (kW)
     function parseAmrFiles(files, XLSX) {
         var dec = [];
@@ -529,7 +529,7 @@
             dec.push({ name: name, lower: lower, text: text, buf: buf });
         }
 
-        // ---- PEA HTML path: find frameset and/or a table file
+        // ---- HTML path: find frameset and/or a table file
         var tableFile = null;
         var framesetFile = null;
         for (var j = 0; j < dec.length; j++) {
@@ -543,7 +543,7 @@
             if (!tableFile) {
                 var m = /frameborder[\s\S]*?src="([^"]+)"|src="([^"]+\.htm[^"]*)"/i.exec(framesetFile.text);
                 var hint = m ? (m[1] || m[2]) : 'sheet001.htm';
-                return { error: 'PEA .xls เป็นไฟล์โครง (frameset) — ให้เลือกเพิ่มไฟล์ตาราง ' + hint + ' ในโฟลเดอร์ *_files ด้วย (เลือกได้หลายไฟล์พร้อมกัน)' };
+                return { error: 'ไฟล์ .xls เป็นไฟล์โครง (frameset) — ให้เลือกเพิ่มไฟล์ตาราง ' + hint + ' ในโฟลเดอร์ *_files ด้วย (เลือกได้หลายไฟล์พร้อมกัน)' };
             }
             return parsePeaHtml(tableFile, XLSX);
         }
@@ -558,7 +558,7 @@
         return { error: 'อ่านข้อมูลจากไฟล์ไม่สำเร็จ — ตรวจว่าไฟล์เป็น ข้อมูลมิเตอร์ราย 15 นาที (คอลัมน์ วัน/เวลา และ กิโลวัตต์)' };
     }
 
-    // --------------------------------------------------------------- PEA HTML
+    // ----------------------------------------------------------------- AMR HTML
     function parsePeaHtml(file, XLSX) {
         var aoa = null;
         try {
@@ -801,7 +801,7 @@
     }
 
     // ---------------------------------------------------------------- summary
-    // Analysis bill like the Python app: PEA rows use the file's on/off flags;
+    // Analysis bill like the Python app: AMR rows use the file's on/off flags;
     // generic rows use the tariff window split.
     function analyzeData(data, tariff) {
         var onKwh = 0, offKwh = 0;

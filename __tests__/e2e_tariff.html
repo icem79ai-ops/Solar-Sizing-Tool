@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>☀️ PEA Solar Sizing Tool</title>
+<title>☀️ Solar Sizing Tool</title>
 <script>
 window.__fatal = function (msg, extra) {
     var d = document.getElementById('fatal');
@@ -33,7 +33,7 @@ window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e
 
 <header id="topbar">
   <div class="brand">
-    <h1>☀️ PEA Solar Sizing Tool</h1>
+    <h1>☀️ Solar Sizing Tool</h1>
     <p class="sub">วิเคราะห์โหลดโปรไฟล์ 15 นาที เพื่อกำหนดขนาดโซลาร์เซลล์ที่เหมาะสม และคำนวณค่าไฟ/คืนทุน <span class="offline-badge">offline 100%</span></p>
   </div>
   <button class="icon-btn" id="btn-settings" title="ตั้งค่า / สำรองข้อมูล">⚙️</button>
@@ -52,7 +52,7 @@ window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e
   <section id="tab-data" class="pane active">
     <div class="card">
       <h2>📁 โหลดข้อมูล Load Profile</h2>
-      <p class="hint">รองรับไฟล์จาก PEA (ไฟล์ .xls HTML — เลือกทั้งไฟล์หลัก <b>และ</b> ไฟล์ <code>sheet001.htm</code> ในโฟลเดอร์ <code>*_files</code> พร้อมกัน) รวมถึงไฟล์ <code>.xlsx</code> / <code>.csv</code> รูปแบบ <b>วัน/เวลา | Power (kW)</b></p>
+      <p class="hint">รองรับไฟล์จากมิเตอร์ (ไฟล์ .xls HTML — เลือกทั้งไฟล์หลัก <b>และ</b> ไฟล์ <code>sheet001.htm</code> ในโฟลเดอร์ <code>*_files</code> พร้อมกัน) รวมถึงไฟล์ <code>.xlsx</code> / <code>.csv</code> รูปแบบ <b>วัน/เวลา | Power (kW)</b></p>
       <label class="upload" for="file-input">
         <span class="up-icon">📤</span>
         <span>คลิกเลือกไฟล์… <small>เลือกได้หลายไฟล์ (กด Ctrl เลือกหลาย)</small></span>

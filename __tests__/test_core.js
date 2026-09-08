@@ -16,7 +16,7 @@ function near(a, b, tol) { return Math.abs(a - b) <= tol; }
 
 const S = Core.cloneSettings(Core.DEFAULT_SETTINGS);
 
-// ---------- PEA TOU file (frameset + sidecar) ----------
+// ---------- TOU file (frameset + sidecar) ----------
 const pea = [
     { name: 'kW02001943440604092026003043.xls', content: fs.readFileSync(path.join(DOWN, 'kW02001943440604092026003043.xls')) },
     { name: 'sheet001.htm', content: fs.readFileSync(path.join(DOWN, 'kW02001943440604092026003043_files', 'sheet001.htm')) }
