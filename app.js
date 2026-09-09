@@ -675,6 +675,15 @@
         charts[id] = null;
     }
 
+    function hexToRgba(hex, a) {
+        var h = String(hex).replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        if (h.length < 6) return 'rgba(150,160,180,' + a + ')';
+        var n = parseInt(h.slice(0, 6), 16);
+        if (isNaN(n)) return 'rgba(150,160,180,' + a + ')';
+        return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+    }
+
     function drawSeriesLines(plot, datasets, isBarKind) {
         if (plot.__lineRaf) return;
         var cv = plot.root && plot.root.querySelector('canvas');
@@ -724,46 +733,49 @@
                     for (var i = 0; i < PX.length; i++) {
                         if (!isFinite(PX[i])) { cur = null; continue; }
                         if (!cur) { cur = { x: [], y: [] }; runs.push(cur); }
-                        cur.x.push(PX[i] * pxr); cur.y.push(PY[i] * pxr);
+                        cur.x.push(PX[i]); cur.y.push(PY[i]);
                     }
                     if (!runs.length) continue;
                     var curve = function () {
                         ctx.beginPath();
                         for (var r = 0; r < runs.length; r++) {
-                            var px0 = runs[r].x, py0 = runs[r].y;
-                            ctx.moveTo(px0[0] / pxr, py0[0] / pxr);
-                            if (px0.length === 2) { ctx.lineTo(px0[1] / pxr, py0[1] / pxr); continue; }
-                            for (var k = 0; k < px0.length - 1; k++) {
-                                var ax = px0[k - 1] || px0[k], ay = py0[k - 1] || py0[k];
-                                var bx = px0[k], by = py0[k];
-                                var cx = px0[k + 1], cy = py0[k + 1];
-                                var dx = px0[k + 2] !== undefined ? px0[k + 2] : cx, dy = py0[k + 2] !== undefined ? py0[k + 2] : cy;
+                            var xr = runs[r].x, yr = runs[r].y;
+                            ctx.moveTo(xr[0], yr[0]);
+                            if (xr.length === 2) { ctx.lineTo(xr[1], yr[1]); continue; }
+                            for (var k = 0; k < xr.length - 1; k++) {
+                                var ax = xr[k - 1] || xr[k], ay = yr[k - 1] || yr[k];
+                                var bx = xr[k], by = yr[k];
+                                var cx = xr[k + 1], cy = yr[k + 1];
+                                var dx = xr[k + 2] !== undefined ? xr[k + 2] : cx, dy = yr[k + 2] !== undefined ? yr[k + 2] : cy;
                                 var c1x = bx + (cx - ax) / 6, c1y = by + (cy - ay) / 6;
                                 var c2x = cx - (dx - bx) / 6, c2y = cy - (dy - by) / 6;
-                                ctx.bezierCurveTo(c1x / pxr, c1y / pxr, c2x / pxr, c2y / pxr, cx / pxr, cy / pxr);
+                                ctx.bezierCurveTo(c1x, c1y, c2x, c2y, cx, cy);
                             }
                         }
                     };
-                    ctx.setLineDash(ds.yAxisID === 'y1' ? [4, 3] : []);
-                    ctx.strokeStyle = stroke;
-                    ctx.lineWidth = (s.width || 2) * pxr;
-                    ctx.globalAlpha = 1;
-                    curve();
-                    ctx.stroke();
-                    var bg = ds.backgroundColor;
-                    if (ds.fill !== false && typeof bg === 'string') {
+                    var by = snap(self.valToPos(0, scale, false));
+                    if (ds.fill !== false) {
+                        var bg2 = typeof ds.backgroundColor === 'string' ? ds.backgroundColor : stroke;
+                        var grad = ctx.createLinearGradient(0, bbox.top, 0, bbox.top + bbox.height);
+                        grad.addColorStop(0, hexToRgba(bg2, 0.32));
+                        grad.addColorStop(0.6, hexToRgba(bg2, 0.12));
+                        grad.addColorStop(1, hexToRgba(bg2, 0));
                         ctx.setLineDash([]);
-                        ctx.fillStyle = bg;
-                        ctx.globalAlpha = 0.08;
+                        ctx.fillStyle = grad;
                         curve();
-                        var g0 = runs[0].x[0], g1 = runs[runs.length - 1].x[runs[runs.length - 1].x.length - 1];
-                        var by = snap(self.valToPos(0, scale, false));
-                        ctx.lineTo(g1 / pxr, by);
-                        ctx.lineTo(g0 / pxr, by);
+                        ctx.lineTo(runs[runs.length - 1].x[runs[runs.length - 1].x.length - 1], by);
+                        ctx.lineTo(runs[0].x[0], by);
                         ctx.closePath();
                         ctx.fill();
-                        ctx.globalAlpha = 1;
                     }
+                    ctx.setLineDash(ds.yAxisID === 'y1' ? [4, 3] : []);
+                    ctx.strokeStyle = stroke;
+                    ctx.lineWidth = Math.max((s.width || 2), 1.5) * pxr;
+                    ctx.shadowColor = stroke;
+                    ctx.shadowBlur = 6 * pxr;
+                    curve();
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
                     ctx.setLineDash([]);
                 }
                 ctx.restore();
