@@ -650,12 +650,13 @@
         charts[id] = null;
     }
 
-    function drawSeriesLines(plot, datasets) {
+    function drawSeriesLines(plot, datasets, isBarKind) {
         if (plot.__lineRaf) return;
         var cv = plot.root && plot.root.querySelector('canvas');
         if (!cv) return;
         var pxr = plot.pxRatio || 1;
         var ctx = cv.getContext('2d');
+        var snap = function (x) { return Math.round(x); };
         var paint = function () {
             try {
                 var self = plot;
@@ -663,12 +664,15 @@
                 var xs = base && base[0];
                 var sc = self.scales;
                 if (!xs || !sc || !sc.x || sc.x.min == null || sc.x.max == null) return;
+                if (isBarKind) return;
                 var bbox = self.bbox;
                 ctx.setTransform(pxr, 0, 0, pxr, 0, 0);
                 ctx.save();
                 ctx.beginPath();
                 ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
                 ctx.clip();
+                ctx.lineJoin = 'round';
+                ctx.lineCap = 'round';
                 for (var l = 1; l < self.series.length; l++) {
                     var s = self.series[l];
                     if (!s.show) continue;
@@ -680,22 +684,62 @@
                     var row = base[l];
                     if (!row) continue;
                     var stroke = typeof ds.borderColor === 'string' ? ds.borderColor : '#4aa3ff';
+                    var PX = new Array(xs.length);
+                    var PY = new Array(xs.length);
+                    for (var i = 0; i < xs.length; i++) {
+                        var xv = xs[i], yv = row[i];
+                        if (xv == null || yv == null) { PX[i] = NaN; PY[i] = NaN; continue; }
+                        var X = snap(self.valToPos(xv, 'x', true));
+                        var Y = snap(self.valToPos(yv, scale, false));
+                        if (!isFinite(X) || !isFinite(Y)) { PX[i] = NaN; PY[i] = NaN; continue; }
+                        PX[i] = X; PY[i] = Y;
+                    }
+                    var runs = [];
+                    var cur = null;
+                    for (var i = 0; i < PX.length; i++) {
+                        if (!isFinite(PX[i])) { cur = null; continue; }
+                        if (!cur) { cur = { x: [], y: [] }; runs.push(cur); }
+                        cur.x.push(PX[i] * pxr); cur.y.push(PY[i] * pxr);
+                    }
+                    if (!runs.length) continue;
+                    var curve = function () {
+                        ctx.beginPath();
+                        for (var r = 0; r < runs.length; r++) {
+                            var px0 = runs[r].x, py0 = runs[r].y;
+                            ctx.moveTo(px0[0] / pxr, py0[0] / pxr);
+                            if (px0.length === 2) { ctx.lineTo(px0[1] / pxr, py0[1] / pxr); continue; }
+                            for (var k = 0; k < px0.length - 1; k++) {
+                                var ax = px0[k - 1] || px0[k], ay = py0[k - 1] || py0[k];
+                                var bx = px0[k], by = py0[k];
+                                var cx = px0[k + 1], cy = py0[k + 1];
+                                var dx = px0[k + 2] !== undefined ? px0[k + 2] : cx, dy = py0[k + 2] !== undefined ? py0[k + 2] : cy;
+                                var c1x = bx + (cx - ax) / 6, c1y = by + (cy - ay) / 6;
+                                var c2x = cx - (dx - bx) / 6, c2y = cy - (dy - by) / 6;
+                                ctx.bezierCurveTo(c1x / pxr, c1y / pxr, c2x / pxr, c2y / pxr, cx / pxr, cy / pxr);
+                            }
+                        }
+                    };
                     ctx.setLineDash(ds.yAxisID === 'y1' ? [4, 3] : []);
                     ctx.strokeStyle = stroke;
-                    ctx.lineWidth = (s.width || 1) * pxr;
-                    ctx.beginPath();
-                    var pen = false;
-                    for (var i = 0; i < xs.length; i++) {
-                        var xv = xs[i];
-                        var yv = row[i];
-                        if (xv == null || yv == null) { pen = false; continue; }
-                        var px = self.valToPos(xv, 'x', true);
-                        var py = self.valToPos(yv, scale, false);
-                        if (!isFinite(px) || !isFinite(py)) { pen = false; continue; }
-                        if (!pen) { ctx.moveTo(px, py); pen = true; }
-                        else ctx.lineTo(px, py);
-                    }
+                    ctx.lineWidth = (s.width || 2) * pxr;
+                    ctx.globalAlpha = 1;
+                    curve();
                     ctx.stroke();
+                    var bg = ds.backgroundColor;
+                    if (ds.fill !== false && typeof bg === 'string') {
+                        ctx.setLineDash([]);
+                        ctx.fillStyle = bg;
+                        ctx.globalAlpha = 0.16;
+                        curve();
+                        var g0 = runs[0].x[0], g1 = runs[runs.length - 1].x[runs[runs.length - 1].x.length - 1];
+                        var by = snap(self.valToPos(0, scale, false));
+                        ctx.lineTo(g1 / pxr, by);
+                        ctx.lineTo(g0 / pxr, by);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+                    }
+                    ctx.setLineDash([]);
                 }
                 ctx.restore();
             } catch (e) { plot.__paintErr = String((e && e.message) || e); }
@@ -729,7 +773,7 @@
         built.cfg.width = size.width;
         built.cfg.height = size.height;
         var plot = new uPlot(built.cfg, built.data, host);
-        drawSeriesLines(plot, data.datasets);
+        drawSeriesLines(plot, data.datasets, kind === 'bar');
         charts[id] = plot;
         if (typeof ResizeObserver !== 'undefined') {
             var ro = new ResizeObserver(function () {
