@@ -1,4 +1,4 @@
-/* Solar Sizing Tool — UI layer (needs Core + Chart.js + SheetJS loaded) */
+/* Solar Sizing Tool — UI layer (needs Core + uPlot + SheetJS loaded) */
 (function () {
     'use strict';
 
@@ -372,9 +372,10 @@
             '<table><thead><tr><th>ความจุ</th><th>เพิ่มประหยัด</th><th>คืนทุนเฉพาะแบต</th><th>เหลือทิ้ง</th></tr></thead>' +
             '<tbody>' + rows + '</tbody></table>';
         $('sizing-chart-extra').innerHTML = '';
-        var canv = document.createElement('canvas');
-        canv.id = 'batt-chart';
-        $('sizing-chart-extra').appendChild(canv);
+        var host = document.createElement('div');
+        host.id = 'batt-chart';
+        host.className = 'plot-host';
+        $('sizing-chart-extra').appendChild(host);
         makeLine('batt-chart', {
             labels: dur.map(function (c) { return c.capacityKwh + 'k'; }),
             datasets: [{
@@ -476,44 +477,179 @@
         }, 'โหลด vs Solar vs Grid' + (state.savMode === 'hybrid' ? ' vs แบตเตอรี่' : '') + ' (วันแทน) — ระยะ ' + scen.periodDays + ' วัน');
     }
 
-    // ------------------------------------------------------------- chart utils
-    function mk(obj) {
-        return JSON.parse(JSON.stringify(obj || {}));
+    // ---------------------------------------------------- chart utils (uPlot)
+    // แปลง labels แบบ Chart.js เป็นค่า x (ตัวเลข) + ตารางป้ายกำกับแกน
+    function xGrid(labels) {
+        if (!labels || !labels.length) return { vals: [], map: {}, ticks: [] };
+        var n = labels.length;
+        var hasEmpty = false, allNum = true;
+        for (var i = 0; i < n; i++) {
+            if (labels[i] === '') hasEmpty = true;
+            else if (!(isFinite(parseFloat(String(labels[i]))) && String(labels[i]).trim() !== '')) allNum = false;
+        }
+        // 96 ช่อง = 15 นาที → ใช้ค่านาทีของวัน (0..1425); ช่องเปล่า (ป้าย "" ที่ไม่ใช่ชั่วโมงตรง)
+        var vals = new Array(n), map = {}, ticks = [];
+        for (var k = 0; k < n; k++) {
+            var x = hasEmpty ? (n === 96 ? k * 15 : k) : (allNum ? parseFloat(String(labels[k])) : k);
+            vals[k] = x;
+            map[String(x)] = labels[k];
+            if (labels[k] !== '' || !hasEmpty) ticks.push(x);
+        }
+        ticks = ticks.filter(function (v, pos, a) { return a.indexOf(v) === pos; }).sort(function (a, b) { return a - b; });
+        return { vals: vals, map: map, ticks: ticks };
     }
-    function baseScales() {
-        return {
-            x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { maxRotation: 0 } },
-            y: { grid: { color: 'rgba(255,255,255,.07)' }, beginAtZero: true }
+
+    function numFmt(v) {
+        if (v === null || v === undefined || !isFinite(v)) return '–';
+        return (Math.round(v * 100) / 100).toLocaleString('en-US');
+    }
+
+    function seriesSpec(ds, isBar) {
+        var s = {
+            label: ds.label || '',
+            scale: ds.yAxisID === 'y1' ? 'y2' : 'y',
+            stroke: ds.borderColor || '#4aa3ff',
+            width: ds.borderWidth || 2,
+            value: function (u, v) { return numFmt(v); }
         };
-    }
-    function chartConfig(kind, data, scales, title, legend) {
-        var c = {
-            type: kind,
-            data: data,
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                animation: { duration: 250 },
-                plugins: {
-                    legend: { display: legend !== false, labels: { color: '#b6c3d8', font: { size: 11 }, boxWidth: 14 } },
-                    tooltip: { mode: 'index', intersect: false, titleColor: '#e8eef7', bodyColor: '#cdd9ea' },
-                    title: { display: !!title, text: title || '', color: '#93a4bd', font: { size: 12 } }
-                },
-                scales: Object.assign(baseScales(), scales || {})
+        if (ds.dash || ds.borderDash) s.dash = ds.borderDash || ds.dash;
+        if (isBar) {
+            s.paths = uPlot.paths.bars({ size: [0.6, '100%'] });
+            s.points = { show: false };
+            if (Array.isArray(ds.backgroundColor)) {
+                s.fill = { unit: 0, values: function () { return ds.backgroundColor; } };
+            } else {
+                s.fill = ds.backgroundColor || '';
             }
-        };
-        return c;
+            return s;
+        }
+        // เส้นโค้งเรียบ + พื้นที่ตาม fill
+        s.paths = function (self, sidx, i0, i1) { return uPlot.paths.spline(self, sidx, i0, i1); };
+        s.fill = (ds.fill !== false && ds.backgroundColor) ? ds.backgroundColor : '';
+        s.points = { show: !!ds.pointRadius, size: 3 };
+        return s;
     }
+
+    function axisSpec(g) {
+        return {
+            stroke: '#8a9bb5',
+            grid: { stroke: 'rgba(255,255,255,.06)', width: 1 },
+            ticks: { stroke: 'rgba(255,255,255,.25)', width: 1, size: 5 },
+            font: '11px "Segoe UI", system-ui, sans-serif'
+        };
+    }
+
+    function chartConfig(kind, data, scales, title, legend) {
+        var labels = data.labels || [];
+        var g = xGrid(labels);
+        var needsY2 = data.datasets.some(function (ds) { return ds.yAxisID === 'y1'; });
+        var uData = [g.vals].concat(data.datasets.map(function (ds) { return ds.data; }));
+        var series = [{ show: false, scale: 'x' }].concat(
+            data.datasets.map(function (ds) {
+                var isBar = kind === 'bar' && ds.type !== 'line';
+                return seriesSpec(ds, isBar);
+            })
+        );
+        var sc = scales || {};
+        var axes = [Object.assign(axisSpec(g), {
+            side: 2, size: 46,
+            splits: function () { return g.ticks; },
+            values: function (self, splits) {
+                return splits.map(function (v) { return g.map[String(v)] || ''; });
+            }
+        })];
+        var yAxis = Object.assign(axisSpec(g), {
+            side: 3, size: 58,
+            values: function (self, splits) { return splits.map(numFmt); },
+            label: (sc.y && sc.y.title && sc.y.title.text) || ''
+        });
+        axes.push(yAxis);
+        var scalesOut = {
+            x: { time: false },
+            y: { min: (sc.y && sc.y.min !== undefined) ? sc.y.min : 0 }
+        };
+        if (sc.y && sc.y.max !== undefined) scalesOut.y.max = sc.y.max;
+        if (needsY2) {
+            axes.push(Object.assign(axisSpec(g), {
+                side: 1, size: 40,
+                grid: { stroke: 'rgba(255,255,255,.05)', width: 1 },
+                values: function (self, splits) { return splits.map(numFmt); },
+                label: (sc.y1 && sc.y1.title && sc.y1.title.text) || ''
+            }));
+            scalesOut.y2 = { min: (sc.y1 && sc.y1.min !== undefined) ? sc.y1.min : 0 };
+        }
+        return {
+            cfg: {
+                scales: scalesOut,
+                series: series,
+                axes: axes,
+                legend: { show: legend !== false },
+                cursor: {
+                    drag: { x: false, y: false },
+                    x: { stroke: 'rgba(255,255,255,.35)' },
+                    y: { stroke: 'rgba(255,255,255,.35)' }
+                },
+                focus: { alpha: 0.35 },
+                pxAlign: 1
+            },
+            data: uData
+        };
+    }
+
+    function chartSize(host) {
+        var w = host.clientWidth || (host.parentNode ? host.parentNode.clientWidth : 0) || 800;
+        var h = host.clientHeight;
+        if (!h) {
+            var ph = parseFloat(getComputedStyle(host).height);
+            h = isFinite(ph) && ph > 0 ? ph : 260;
+        }
+        return { width: Math.max(w, 1), height: Math.max(h, 1) };
+    }
+
+    function destroyChart(id) {
+        var p = charts[id];
+        if (!p) return;
+        if (p.__ro) p.__ro.disconnect();
+        try { p.destroy(); } catch (e) { /* ignore */ }
+        charts[id] = null;
+    }
+
     function makeChart(id, kind, data, scales, title, legend) {
-        if (charts[id]) { charts[id].destroy(); charts[id] = null; }
-        var canvas = $(id);
-        var fresh = canvas.cloneNode(false);
-        canvas.parentNode.insertBefore(fresh, canvas);
-        canvas.parentNode.removeChild(canvas);
-        charts[id] = new Chart(fresh, chartConfig(kind, data, scales, title, legend));
-        return charts[id];
+        destroyChart(id);
+        var host = $(id);
+        if (!host) return null;
+        var box = host.parentNode;
+        if (box) {
+            var prev = host.previousElementSibling;
+            if (prev && prev.classList && prev.classList.contains('uplot-title')) prev.remove();
+            if (title) {
+                var t = document.createElement('div');
+                t.className = 'uplot-title';
+                box.insertBefore(t, host);
+                t.textContent = title;
+            }
+        }
+        var built = chartConfig(kind, data, scales, title, legend);
+        var size = chartSize(host);
+        built.cfg.width = size.width;
+        built.cfg.height = size.height;
+        var plot = new uPlot(built.cfg, built.data, host);
+        charts[id] = plot;
+        if (typeof ResizeObserver !== 'undefined') {
+            var ro = new ResizeObserver(function () {
+                var p = charts[id];
+                if (!p) return;
+                var s = chartSize(host);
+                p.setSize({ width: s.width, height: s.height });
+            });
+            ro.observe(host);
+            plot.__ro = ro;
+        }
+        return plot;
     }
     function makeLine(id, data, scales, title, legend) {
+        // รองรับสไตล์เดิมที่ส่ง title ไปตำแหน่ง scales โดยผิด (เช่น batt-chart)
+        if (typeof scales === 'string') { legend = title; title = scales; scales = undefined; }
         return makeChart(id, 'line', data, scales, title, legend);
     }
 
