@@ -539,6 +539,42 @@
         };
     }
 
+    function numBounds(ds) {
+        var lo = Infinity, hi = -Infinity;
+        var d = ds.data || [];
+        for (var i = 0; i < d.length; i++) {
+            var v = d[i];
+            if (v === null || v === undefined || typeof v !== 'number' || !isFinite(v)) continue;
+            if (v < lo) lo = v;
+            if (v > hi) hi = v;
+        }
+        return lo === Infinity ? null : { lo: lo, hi: hi };
+    }
+    function autoYRange(key, data) {
+        var lo = Infinity, hi = -Infinity, any = false;
+        data.datasets.forEach(function (ds) {
+            var k = ds.yAxisID === 'y1' ? 'y1' : 'y';
+            if (k !== key) return;
+            var b = numBounds(ds);
+            if (!b) return;
+            any = true;
+            if (b.lo < lo) lo = b.lo;
+            if (b.hi > hi) hi = b.hi;
+        });
+        if (!any) return null;
+        lo = Math.min(lo, 0);
+        if (hi === lo) hi = lo + 1;
+        var pad = (hi - lo) * 0.05;
+        return { lo: lo === 0 ? 0 : lo - pad, hi: hi + pad };
+    }
+    function yScale(caller, key, data) {
+        var cm = caller && caller.min !== undefined ? caller.min : null;
+        var cx = caller && caller.max !== undefined ? caller.max : null;
+        if (cm !== null && cx !== null) return { min: cm, max: cx };
+        var r = autoYRange(key, data);
+        return { min: cm !== null ? cm : (r ? r.lo : 0), max: cx !== null ? cx : (r ? r.hi : undefined) };
+    }
+
     function chartConfig(kind, data, scales, title, legend) {
         var labels = data.labels || [];
         var g = xGrid(labels);
@@ -566,9 +602,8 @@
         axes.push(yAxis);
         var scalesOut = {
             x: { time: false },
-            y: { min: (sc.y && sc.y.min !== undefined) ? sc.y.min : 0 }
+            y: yScale(sc.y, 'y', data)
         };
-        if (sc.y && sc.y.max !== undefined) scalesOut.y.max = sc.y.max;
         if (needsY2) {
             axes.push(Object.assign(axisSpec(g), {
                 side: 1, size: 40,
@@ -576,7 +611,7 @@
                 values: function (self, splits) { return splits.map(numFmt); },
                 label: (sc.y1 && sc.y1.title && sc.y1.title.text) || ''
             }));
-            scalesOut.y2 = { min: (sc.y1 && sc.y1.min !== undefined) ? sc.y1.min : 0 };
+            scalesOut.y2 = yScale(sc.y1, 'y1', data);
         }
         return {
             cfg: {
@@ -609,9 +644,69 @@
     function destroyChart(id) {
         var p = charts[id];
         if (!p) return;
+        if (p.__lineRaf) cancelAnimationFrame(p.__lineRaf);
         if (p.__ro) p.__ro.disconnect();
         try { p.destroy(); } catch (e) { /* ignore */ }
         charts[id] = null;
+    }
+
+    function drawSeriesLines(plot, datasets) {
+        if (plot.__lineRaf) return;
+        var cv = plot.root && plot.root.querySelector('canvas');
+        if (!cv) return;
+        var pxr = plot.pxRatio || 1;
+        var ctx = cv.getContext('2d');
+        var paint = function () {
+            try {
+                var self = plot;
+                var base = self._data;
+                var xs = base && base[0];
+                var sc = self.scales;
+                if (!xs || !sc || !sc.x || sc.x.min == null || sc.x.max == null) return;
+                var bbox = self.bbox;
+                ctx.setTransform(pxr, 0, 0, pxr, 0, 0);
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+                ctx.clip();
+                for (var l = 1; l < self.series.length; l++) {
+                    var s = self.series[l];
+                    if (!s.show) continue;
+                    var ds = datasets[l - 1];
+                    if (!ds) continue;
+                    var scale = s.scale || 'y';
+                    var ys = sc[scale];
+                    if (!ys || ys.min == null || ys.max == null) continue;
+                    var row = base[l];
+                    if (!row) continue;
+                    var stroke = typeof ds.borderColor === 'string' ? ds.borderColor : '#4aa3ff';
+                    ctx.setLineDash(ds.yAxisID === 'y1' ? [4, 3] : []);
+                    ctx.strokeStyle = stroke;
+                    ctx.lineWidth = (s.width || 1) * pxr;
+                    ctx.beginPath();
+                    var pen = false;
+                    for (var i = 0; i < xs.length; i++) {
+                        var xv = xs[i];
+                        var yv = row[i];
+                        if (xv == null || yv == null) { pen = false; continue; }
+                        var px = self.valToPos(xv, 'x', true);
+                        var py = self.valToPos(yv, scale, false);
+                        if (!isFinite(px) || !isFinite(py)) { pen = false; continue; }
+                        if (!pen) { ctx.moveTo(px, py); pen = true; }
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.stroke();
+                }
+                ctx.restore();
+            } catch (e) { plot.__paintErr = String((e && e.message) || e); }
+        };
+        plot.__paintLines = paint;
+        paint();
+        var tick = function () {
+            plot.__lineRaf = requestAnimationFrame(tick);
+            paint();
+        };
+        plot.__lineRaf = requestAnimationFrame(tick);
     }
 
     function makeChart(id, kind, data, scales, title, legend) {
@@ -634,6 +729,7 @@
         built.cfg.width = size.width;
         built.cfg.height = size.height;
         var plot = new uPlot(built.cfg, built.data, host);
+        drawSeriesLines(plot, data.datasets);
         charts[id] = plot;
         if (typeof ResizeObserver !== 'undefined') {
             var ro = new ResizeObserver(function () {
