@@ -1,4 +1,4 @@
-/* Solar Sizing Tool — UI layer (needs Core + uPlot + SheetJS loaded) */
+/* Solar Sizing Tool — UI layer (needs Core + Chart.js + SheetJS loaded) */
 (function () {
     'use strict';
 
@@ -372,10 +372,9 @@
             '<table><thead><tr><th>ความจุ</th><th>เพิ่มประหยัด</th><th>คืนทุนเฉพาะแบต</th><th>เหลือทิ้ง</th></tr></thead>' +
             '<tbody>' + rows + '</tbody></table>';
         $('sizing-chart-extra').innerHTML = '';
-        var host = document.createElement('div');
-        host.id = 'batt-chart';
-        host.className = 'plot-host';
-        $('sizing-chart-extra').appendChild(host);
+        var canv = document.createElement('canvas');
+        canv.id = 'batt-chart';
+        $('sizing-chart-extra').appendChild(canv);
         makeLine('batt-chart', {
             labels: dur.map(function (c) { return c.capacityKwh + 'k'; }),
             datasets: [{
@@ -477,356 +476,44 @@
         }, 'โหลด vs Solar vs Grid' + (state.savMode === 'hybrid' ? ' vs แบตเตอรี่' : '') + ' (วันแทน) — ระยะ ' + scen.periodDays + ' วัน');
     }
 
-    // ---------------------------------------------------- chart utils (uPlot)
-    // แปลง labels แบบ Chart.js เป็นค่า x (ตัวเลข) + ตารางป้ายกำกับแกน
-    function xGrid(labels) {
-        if (!labels || !labels.length) return { vals: [], map: {}, ticks: [] };
-        var n = labels.length;
-        var hasEmpty = false, allNum = true;
-        for (var i = 0; i < n; i++) {
-            if (labels[i] === '') hasEmpty = true;
-            else if (!(isFinite(parseFloat(String(labels[i]))) && String(labels[i]).trim() !== '')) allNum = false;
-        }
-        // 96 ช่อง = 15 นาที → ใช้ค่านาทีของวัน (0..1425); ช่องเปล่า (ป้าย "" ที่ไม่ใช่ชั่วโมงตรง)
-        var vals = new Array(n), map = {}, ticks = [];
-        for (var k = 0; k < n; k++) {
-            var x = hasEmpty ? (n === 96 ? k * 15 : k) : (allNum ? parseFloat(String(labels[k])) : k);
-            vals[k] = x;
-            map[String(x)] = labels[k];
-            if (labels[k] !== '' || !hasEmpty) ticks.push(x);
-        }
-        ticks = ticks.filter(function (v, pos, a) { return a.indexOf(v) === pos; }).sort(function (a, b) { return a - b; });
-        return { vals: vals, map: map, ticks: ticks };
+    // ------------------------------------------------------------- chart utils
+    function mk(obj) {
+        return JSON.parse(JSON.stringify(obj || {}));
     }
-
-    function numFmt(v) {
-        if (v === null || v === undefined || !isFinite(v)) return '–';
-        return (Math.round(v * 100) / 100).toLocaleString('en-US');
-    }
-
-    function seriesSpec(ds, isBar) {
-        var s = {
-            label: ds.label || '',
-            scale: ds.yAxisID === 'y1' ? 'y2' : 'y',
-            stroke: ds.borderColor || '#4aa3ff',
-            width: ds.borderWidth || 2,
-            value: function (u, v) { return numFmt(v); }
-        };
-        if (ds.dash || ds.borderDash) s.dash = ds.borderDash || ds.dash;
-        if (isBar) {
-            s.paths = uPlot.paths.bars({ size: [0.6, '100%'] });
-            s.points = { show: false };
-            if (Array.isArray(ds.backgroundColor)) {
-                s.fill = { unit: 0, values: function () { return ds.backgroundColor; } };
-            } else {
-                s.fill = ds.backgroundColor || '';
-            }
-            return s;
-        }
-        // เส้นโค้งเรียบ + พื้นที่ตาม fill
-        s.paths = function (self, sidx, i0, i1) { return uPlot.paths.spline(self, sidx, i0, i1); };
-        s.fill = (ds.fill !== false && ds.backgroundColor) ? ds.backgroundColor : '';
-        s.points = { show: !!ds.pointRadius, size: 3 };
-        return s;
-    }
-
-    function axisSpec(g) {
+    function baseScales() {
         return {
-            stroke: '#8a9bb5',
-            grid: { stroke: 'rgba(255,255,255,.06)', width: 1 },
-            ticks: { stroke: 'rgba(255,255,255,.25)', width: 1, size: 5 },
-            font: '11px "Segoe UI", system-ui, sans-serif'
+            x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { maxRotation: 0 } },
+            y: { grid: { color: 'rgba(255,255,255,.07)' }, beginAtZero: true }
         };
     }
-
-    function numBounds(ds) {
-        var lo = Infinity, hi = -Infinity;
-        var d = ds.data || [];
-        for (var i = 0; i < d.length; i++) {
-            var v = d[i];
-            if (v === null || v === undefined || typeof v !== 'number' || !isFinite(v)) continue;
-            if (v < lo) lo = v;
-            if (v > hi) hi = v;
-        }
-        return lo === Infinity ? null : { lo: lo, hi: hi };
-    }
-    function niceStep(step0) {
-        var pow = Math.pow(10, Math.floor(Math.log(step0) / Math.LN10));
-        var err = step0 / pow;
-        return (err >= 7 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1) * pow;
-    }
-    function niceTicks(lo, hi, maxN) {
-        var span = (hi - lo) || 1;
-        var step = niceStep(span / (maxN || 5));
-        return { lo: Math.floor(lo / step) * step, hi: Math.ceil(hi / step) * step, step: step };
-    }
-    function autoYRange(key, data) {
-        var lo = Infinity, hi = -Infinity, any = false;
-        data.datasets.forEach(function (ds) {
-            var k = ds.yAxisID === 'y1' ? 'y1' : 'y';
-            if (k !== key) return;
-            var b = numBounds(ds);
-            if (!b) return;
-            any = true;
-            if (b.lo < lo) lo = b.lo;
-            if (b.hi > hi) hi = b.hi;
-        });
-        if (!any) return null;
-        lo = Math.min(lo, 0);
-        if (hi === lo) hi = lo + 1;
-        var r = lo < 0 ? { lo: lo, hi: hi } : { lo: 0, hi: hi };
-        var nt = niceTicks(r.lo, r.hi, 5);
-        return { lo: Math.min(nt.lo, 0), hi: nt.hi, step: nt.step };
-    }
-    function tickList(r) {
-        var out = [];
-        if (!r || !r.step) return out;
-        for (var v = r.lo; v <= r.hi + r.step * 1e-6; v += r.step) out.push(Math.round(v * 1e6) / 1e6);
-        return out;
-    }
-    function yScale(caller, key, data) {
-        var cm = caller && caller.min !== undefined ? caller.min : null;
-        var cx = caller && caller.max !== undefined ? caller.max : null;
-        if (cm !== null && cx !== null) {
-            var nt = niceTicks(cm, cx, 5);
-            return { min: cm, max: cx, step: nt.step };
-        }
-        var r = autoYRange(key, data);
-        return { min: cm !== null ? cm : (r ? r.lo : 0), max: cx !== null ? cx : (r ? r.hi : 1), step: r ? r.step : 1 };
-    }
-
     function chartConfig(kind, data, scales, title, legend) {
-        var labels = data.labels || [];
-        var g = xGrid(labels);
-        var needsY2 = data.datasets.some(function (ds) { return ds.yAxisID === 'y1'; });
-        var uData = [g.vals].concat(data.datasets.map(function (ds) { return ds.data; }));
-        var series = [{ show: false, scale: 'x' }].concat(
-            data.datasets.map(function (ds) {
-                var isBar = kind === 'bar' && ds.type !== 'line';
-                return seriesSpec(ds, isBar);
-            })
-        );
-        var sc = scales || {};
-        var axes = [Object.assign(axisSpec(g), {
-            side: 2, size: 46,
-            splits: function () { return g.ticks; },
-            values: function (self, splits) {
-                return splits.map(function (v) { return g.map[String(v)] || ''; });
-            }
-        })];
-        var yAxis = Object.assign(axisSpec(g), {
-            side: 3, size: 58,
-            splits: function () { return yTicks; },
-            values: function (self, splits) { return splits.map(numFmt); },
-            label: (sc.y && sc.y.title && sc.y.title.text) || ''
-        });
-        axes.push(yAxis);
-        var scalesOut = {
-            x: { time: false },
-            y: yScale(sc.y, 'y', data)
-        };
-        var yTicks = tickList(scalesOut.y);
-        if (needsY2) {
-            var y2R = yScale(sc.y1, 'y1', data);
-            var y2Ticks = tickList(y2R);
-            axes.push(Object.assign(axisSpec(g), {
-                side: 1, size: 40,
-                grid: { stroke: 'rgba(255,255,255,.05)', width: 1 },
-                splits: function () { return y2Ticks; },
-                values: function (self, splits) { return splits.map(numFmt); },
-                label: (sc.y1 && sc.y1.title && sc.y1.title.text) || ''
-            }));
-            scalesOut.y2 = y2R;
-        }
-        return {
-            cfg: {
-                scales: scalesOut,
-                series: series,
-                axes: axes,
-                legend: { show: legend !== false },
-                cursor: {
-                    drag: { x: false, y: false },
-                    x: { stroke: 'rgba(255,255,255,.35)' },
-                    y: { stroke: 'rgba(255,255,255,.35)' }
+        var c = {
+            type: kind,
+            data: data,
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                animation: { duration: 250 },
+                plugins: {
+                    legend: { display: legend !== false, labels: { color: '#b6c3d8', font: { size: 11 }, boxWidth: 14 } },
+                    tooltip: { mode: 'index', intersect: false, titleColor: '#e8eef7', bodyColor: '#cdd9ea' },
+                    title: { display: !!title, text: title || '', color: '#93a4bd', font: { size: 12 } }
                 },
-                focus: { alpha: 0.35 },
-                pxAlign: 1
-            },
-            data: uData
-        };
-    }
-
-    function chartSize(host) {
-        var w = host.clientWidth || (host.parentNode ? host.parentNode.clientWidth : 0) || 800;
-        var h = host.clientHeight;
-        if (!h) {
-            var ph = parseFloat(getComputedStyle(host).height);
-            h = isFinite(ph) && ph > 0 ? ph : 260;
-        }
-        return { width: Math.max(w, 1), height: Math.max(h, 1) };
-    }
-
-    function destroyChart(id) {
-        var p = charts[id];
-        if (!p) return;
-        if (p.__lineRaf) cancelAnimationFrame(p.__lineRaf);
-        if (p.__ro) p.__ro.disconnect();
-        try { p.destroy(); } catch (e) { /* ignore */ }
-        charts[id] = null;
-    }
-
-    function hexToRgba(hex, a) {
-        var h = String(hex).replace('#', '');
-        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-        if (h.length < 6) return 'rgba(150,160,180,' + a + ')';
-        var n = parseInt(h.slice(0, 6), 16);
-        if (isNaN(n)) return 'rgba(150,160,180,' + a + ')';
-        return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
-    }
-
-    function drawSeriesLines(plot, datasets, isBarKind) {
-        if (plot.__lineRaf) return;
-        var cv = plot.root && plot.root.querySelector('canvas');
-        if (!cv) return;
-        var pxr = plot.pxRatio || 1;
-        var ctx = cv.getContext('2d');
-        var snap = function (x) { return Math.round(x); };
-        var paint = function () {
-            try {
-                var self = plot;
-                var base = self._data;
-                var xs = base && base[0];
-                var sc = self.scales;
-                if (!xs || !sc || !sc.x || sc.x.min == null || sc.x.max == null) return;
-                if (isBarKind) return;
-                var bbox = self.bbox;
-                ctx.setTransform(pxr, 0, 0, pxr, 0, 0);
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
-                ctx.clip();
-                ctx.lineJoin = 'round';
-                ctx.lineCap = 'round';
-                for (var l = 1; l < self.series.length; l++) {
-                    var s = self.series[l];
-                    if (!s.show) continue;
-                    var ds = datasets[l - 1];
-                    if (!ds) continue;
-                    var scale = s.scale || 'y';
-                    var ys = sc[scale];
-                    if (!ys || ys.min == null || ys.max == null) continue;
-                    var row = base[l];
-                    if (!row) continue;
-                    var stroke = typeof ds.borderColor === 'string' ? ds.borderColor : '#4aa3ff';
-                    var PX = new Array(xs.length);
-                    var PY = new Array(xs.length);
-                    for (var i = 0; i < xs.length; i++) {
-                        var xv = xs[i], yv = row[i];
-                        if (xv == null || yv == null) { PX[i] = NaN; PY[i] = NaN; continue; }
-                        var X = snap(self.valToPos(xv, 'x', true));
-                        var Y = snap(self.valToPos(yv, scale, false));
-                        if (!isFinite(X) || !isFinite(Y)) { PX[i] = NaN; PY[i] = NaN; continue; }
-                        PX[i] = X; PY[i] = Y;
-                    }
-                    var runs = [];
-                    var cur = null;
-                    for (var i = 0; i < PX.length; i++) {
-                        if (!isFinite(PX[i])) { cur = null; continue; }
-                        if (!cur) { cur = { x: [], y: [] }; runs.push(cur); }
-                        cur.x.push(PX[i]); cur.y.push(PY[i]);
-                    }
-                    if (!runs.length) continue;
-                    var curve = function () {
-                        ctx.beginPath();
-                        for (var r = 0; r < runs.length; r++) {
-                            var xr = runs[r].x, yr = runs[r].y;
-                            ctx.moveTo(xr[0], yr[0]);
-                            if (xr.length === 2) { ctx.lineTo(xr[1], yr[1]); continue; }
-                            for (var k = 0; k < xr.length - 1; k++) {
-                                var ax = xr[k - 1] || xr[k], ay = yr[k - 1] || yr[k];
-                                var bx = xr[k], by = yr[k];
-                                var cx = xr[k + 1], cy = yr[k + 1];
-                                var dx = xr[k + 2] !== undefined ? xr[k + 2] : cx, dy = yr[k + 2] !== undefined ? yr[k + 2] : cy;
-                                var c1x = bx + (cx - ax) / 6, c1y = by + (cy - ay) / 6;
-                                var c2x = cx - (dx - bx) / 6, c2y = cy - (dy - by) / 6;
-                                ctx.bezierCurveTo(c1x, c1y, c2x, c2y, cx, cy);
-                            }
-                        }
-                    };
-                    var by = snap(self.valToPos(0, scale, false));
-                    if (ds.fill !== false) {
-                        var bg2 = typeof ds.backgroundColor === 'string' ? ds.backgroundColor : stroke;
-                        var grad = ctx.createLinearGradient(0, bbox.top, 0, bbox.top + bbox.height);
-                        grad.addColorStop(0, hexToRgba(bg2, 0.32));
-                        grad.addColorStop(0.6, hexToRgba(bg2, 0.12));
-                        grad.addColorStop(1, hexToRgba(bg2, 0));
-                        ctx.setLineDash([]);
-                        ctx.fillStyle = grad;
-                        curve();
-                        ctx.lineTo(runs[runs.length - 1].x[runs[runs.length - 1].x.length - 1], by);
-                        ctx.lineTo(runs[0].x[0], by);
-                        ctx.closePath();
-                        ctx.fill();
-                    }
-                    ctx.setLineDash(ds.yAxisID === 'y1' ? [4, 3] : []);
-                    ctx.strokeStyle = stroke;
-                    ctx.lineWidth = Math.max((s.width || 2), 1.5) * pxr;
-                    ctx.shadowColor = stroke;
-                    ctx.shadowBlur = 6 * pxr;
-                    curve();
-                    ctx.stroke();
-                    ctx.shadowBlur = 0;
-                    ctx.setLineDash([]);
-                }
-                ctx.restore();
-            } catch (e) { plot.__paintErr = String((e && e.message) || e); }
-        };
-        plot.__paintLines = paint;
-        paint();
-        var tick = function () {
-            plot.__lineRaf = requestAnimationFrame(tick);
-            paint();
-        };
-        plot.__lineRaf = requestAnimationFrame(tick);
-    }
-
-    function makeChart(id, kind, data, scales, title, legend) {
-        destroyChart(id);
-        var host = $(id);
-        if (!host) return null;
-        var box = host.parentNode;
-        if (box) {
-            var prev = host.previousElementSibling;
-            if (prev && prev.classList && prev.classList.contains('uplot-title')) prev.remove();
-            if (title) {
-                var t = document.createElement('div');
-                t.className = 'uplot-title';
-                box.insertBefore(t, host);
-                t.textContent = title;
+                scales: Object.assign(baseScales(), scales || {})
             }
-        }
-        var built = chartConfig(kind, data, scales, title, legend);
-        var size = chartSize(host);
-        built.cfg.width = size.width;
-        built.cfg.height = size.height;
-        var plot = new uPlot(built.cfg, built.data, host);
-        drawSeriesLines(plot, data.datasets, kind === 'bar');
-        charts[id] = plot;
-        if (typeof ResizeObserver !== 'undefined') {
-            var ro = new ResizeObserver(function () {
-                var p = charts[id];
-                if (!p) return;
-                var s = chartSize(host);
-                p.setSize({ width: s.width, height: s.height });
-            });
-            ro.observe(host);
-            plot.__ro = ro;
-        }
-        return plot;
+        };
+        return c;
+    }
+    function makeChart(id, kind, data, scales, title, legend) {
+        if (charts[id]) { charts[id].destroy(); charts[id] = null; }
+        var canvas = $(id);
+        var fresh = canvas.cloneNode(false);
+        canvas.parentNode.insertBefore(fresh, canvas);
+        canvas.parentNode.removeChild(canvas);
+        charts[id] = new Chart(fresh, chartConfig(kind, data, scales, title, legend));
+        return charts[id];
     }
     function makeLine(id, data, scales, title, legend) {
-        // รองรับสไตล์เดิมที่ส่ง title ไปตำแหน่ง scales โดยผิด (เช่น batt-chart)
-        if (typeof scales === 'string') { legend = title; title = scales; scales = undefined; }
         return makeChart(id, 'line', data, scales, title, legend);
     }
 

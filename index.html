@@ -24,8 +24,7 @@ window.addEventListener('unhandledrejection', function (e) {
     window.__fatal('เกิดข้อผิดพลาด (async): ' + (e.reason && e.reason.message || e.reason));
 });
 </script>
-<link rel="stylesheet" href="lib/uplot.min.css?v=2">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -82,7 +81,7 @@ window.addEventListener('unhandledrejection', function (e) {
     </div>
     <div class="card">
       <h2>📈 รูปแบบการโหลดรายวัน (เฉลี่ยต่อ 15 นาที)</h2>
-      <div class="chart-box"><div id="analysis-chart" class="plot-host"></div></div>
+      <div class="chart-box"><canvas id="analysis-chart"></canvas></div>
     </div>
   </section>
 
@@ -135,7 +134,7 @@ window.addEventListener('unhandledrejection', function (e) {
 
     <div class="card">
       <h2>📊 ประหยัด &amp; คืนทุน ต่อขนาด</h2>
-      <div class="chart-box" style="height:320px"><div id="sizing-chart" class="plot-host"></div></div>
+      <div class="chart-box" style="height:320px"><canvas id="sizing-chart"></canvas></div>
       <div id="sizing-chart-extra" class="chart-box" style="height:300px"></div>
     </div>
 
@@ -181,12 +180,12 @@ window.addEventListener('unhandledrejection', function (e) {
 
     <div class="card">
       <h2>📈 โหลด vs Solar vs Grid (วันแทน)</h2>
-      <div class="chart-box" style="height:340px"><div id="daily-chart" class="plot-host"></div></div>
+      <div class="chart-box" style="height:340px"><canvas id="daily-chart"></canvas></div>
     </div>
 
     <div class="card" id="soc-card">
       <h2>🔋 สถานะการชาร์จแบต (SoC)</h2>
-      <div class="chart-box" style="height:240px"><div id="soc-chart" class="plot-host"></div></div>
+      <div class="chart-box" style="height:240px"><canvas id="soc-chart"></canvas></div>
       <p class="caption">🧭 วิธีอ่าน: SoC เริ่มต้น 50% — ช่วงกลางวันโซลาร์ผลิตเกินโหลดแบตจะชาร์จขึ้น 100% (เต็ม) ช่วงเย็น-กลางคืนแบตคายไฟให้โหลด ทำให้กริดจ่ายน้อยลง จนกว่าจะหมด (0%)</p>
     </div>
   </section>
@@ -255,15 +254,15 @@ window.addEventListener('unhandledrejection', function (e) {
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="lib/uplot.min.js?v=2"></script>
+<script src="lib/chart.umd.min.js"></script>
 <script src="lib/xlsx.full.min.js"></script>
-<script src="core.js?v=2"></script>
-<script src="app.js?v=2"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];
     if (typeof Core === 'undefined') miss.push('core.js');
-    if (typeof uPlot === 'undefined') miss.push('lib/uplot.min.js');
+    if (typeof Chart === 'undefined') miss.push('lib/chart.umd.min.js');
     if (typeof XLSX === 'undefined') miss.push('lib/xlsx.full.min.js');
     if (miss.length) {
         window.__fatal('โหลดสคริปต์ไม่ครบ: ' + miss.join(', ') +

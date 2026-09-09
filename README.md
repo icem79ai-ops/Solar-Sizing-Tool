@@ -74,8 +74,8 @@ Solar-Sizing-Tool/
 ├── core.js           # เอนจินคำนวณล้วน (JS) — โมเดลเดียวกับ Python
 ├── app.js            # UI + กราฟ + ส่งออกไฟล์
 ├── lib/
-│   ├── uplot.min.js        # uPlot 1.6.31 (MIT) — กราฟ (ในเครื่อง)
-│   └── xlsx.full.min.js   # SheetJS 0.20.2 (Apache-2.0) (ในเครื่อง)
+│   ├── chart.umd.min.js   # Chart.js v4.4.3 (ในเครื่อง)
+│   └── xlsx.full.min.js   # SheetJS 0.20.2 (ในเครื่อง)
 └── __tests__/        # เทสต์ Node + E2E
 ```
 

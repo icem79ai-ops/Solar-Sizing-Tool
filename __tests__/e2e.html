@@ -73,13 +73,13 @@
         log('summary: ' + textOf('#file-summary'), true);
         log('bill: ' + textOf('#bill-metrics'), true);
         log('CHECK bill ~36,268', textOf('#bill-metrics').indexOf('36,268') >= 0);
-        log('CHECK canvas analysis drawn', canvasPixels('#analysis-chart canvas'));
+        log('CHECK canvas analysis drawn', canvasPixels('#analysis-chart'));
 
         click('button[data-tab="sizing"]');
         await wait(800);
         log('CHECK rec 12 kWp', textOf('#rec-metrics').indexOf('12 kWp') >= 0);
         log('CHECK 9 rows', doc().querySelectorAll('#sizing-table tbody tr').length === 9);
-        log('CHECK canvas sizing drawn', canvasPixels('#sizing-chart canvas'));
+        log('CHECK canvas sizing drawn', canvasPixels('#sizing-chart'));
 
         click('#sizing-mode .opt[data-mode="hybrid"]');
         await wait(800);
@@ -88,7 +88,7 @@
         click('button[data-tab="savings"]');
         await wait(800);
         log('CHECK save 5kWp ~4,046/เดือน', textOf('#save-metrics').indexOf('4,045') >= 0);
-        log('CHECK canvas daily drawn', canvasPixels('#daily-chart canvas'));
+        log('CHECK canvas daily drawn', canvasPixels('#daily-chart'));
 
         var mv = doc().getElementById('sav-size');
         mv.value = '10'; mv.dispatchEvent(new Event('input', { bubbles: true }));
@@ -102,7 +102,7 @@
         await wait(1000);
         log('CHECK hybrid10+15 7,968', textOf('#save-metrics').indexOf('7,968') >= 0);
         log('CHECK soc shown', doc().getElementById('soc-card').style.display !== 'none');
-        log('CHECK canvas soc drawn', canvasPixels('#soc-chart canvas'));
+        log('CHECK canvas soc drawn', canvasPixels('#soc-chart'));
 
         log('E2E complete', true);
     }

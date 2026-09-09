@@ -195,29 +195,8 @@ tbody tr.rec td:first-child { color: var(--acc); font-weight: 700; }
 tbody tr:hover { background: rgba(255,255,255,.03); }
 
 .chart-box { position: relative; width: 100%; }
-.plot-host { position: relative; width: 100%; height: 260px; }
-.uplot-title { font-size: .76rem; color: #93a4bd; text-align: center; padding: 2px 0 6px; }
-#sizing-chart { height: 300px; }
-#daily-chart { height: 320px; }
-#soc-chart { height: 220px; }
-#batt-chart { height: 280px; }
-#sizing-chart-extra { height: 300px; }
-
-/* ---------- uPlot dark theme ---------- */
-.uplot { font-family: "Segoe UI", system-ui, sans-serif; }
-.uplot .u-wrap { position: relative; }
-.uplot .u-legend {
-  margin-top: 6px; width: 100%; border-collapse: separate; font-size: .72rem;
-  color: #93a4bd; text-align: center; border: none; background: none;
-}
-.uplot .u-legend.u-inline th, .uplot .u-legend.u-inline td { display: inline-block; vertical-align: middle; }
-.uplot .u-legend th, .uplot .u-legend td { border: none; padding: 2px 4px; background: none; }
-.uplot .u-legend .u-marker { width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; }
-.uplot .u-legend .u-value { color: #e8eef7; }
-.uplot .u-legend .u-off { opacity: .35; }
-.uplot .u-cursor-x, .uplot .u-cursor-y { opacity: .4; }
-.uplot .u-select { background: rgba(53,208,127,.12); }
-.uplot .u-cursor-pt { pointer-events: none; }
+.chart-box canvas, .chart-box > div { height: 260px; }
+#sizing-chart-extra { height: 260px; }
 
 /* ---------- modal ---------- */
 .modal {
