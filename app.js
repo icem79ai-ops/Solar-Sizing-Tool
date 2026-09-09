@@ -550,6 +550,16 @@
         }
         return lo === Infinity ? null : { lo: lo, hi: hi };
     }
+    function niceStep(step0) {
+        var pow = Math.pow(10, Math.floor(Math.log(step0) / Math.LN10));
+        var err = step0 / pow;
+        return (err >= 7 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1) * pow;
+    }
+    function niceTicks(lo, hi, maxN) {
+        var span = (hi - lo) || 1;
+        var step = niceStep(span / (maxN || 5));
+        return { lo: Math.floor(lo / step) * step, hi: Math.ceil(hi / step) * step, step: step };
+    }
     function autoYRange(key, data) {
         var lo = Infinity, hi = -Infinity, any = false;
         data.datasets.forEach(function (ds) {
@@ -564,15 +574,25 @@
         if (!any) return null;
         lo = Math.min(lo, 0);
         if (hi === lo) hi = lo + 1;
-        var pad = (hi - lo) * 0.05;
-        return { lo: lo === 0 ? 0 : lo - pad, hi: hi + pad };
+        var r = lo < 0 ? { lo: lo, hi: hi } : { lo: 0, hi: hi };
+        var nt = niceTicks(r.lo, r.hi, 5);
+        return { lo: Math.min(nt.lo, 0), hi: nt.hi, step: nt.step };
+    }
+    function tickList(r) {
+        var out = [];
+        if (!r || !r.step) return out;
+        for (var v = r.lo; v <= r.hi + r.step * 1e-6; v += r.step) out.push(Math.round(v * 1e6) / 1e6);
+        return out;
     }
     function yScale(caller, key, data) {
         var cm = caller && caller.min !== undefined ? caller.min : null;
         var cx = caller && caller.max !== undefined ? caller.max : null;
-        if (cm !== null && cx !== null) return { min: cm, max: cx };
+        if (cm !== null && cx !== null) {
+            var nt = niceTicks(cm, cx, 5);
+            return { min: cm, max: cx, step: nt.step };
+        }
         var r = autoYRange(key, data);
-        return { min: cm !== null ? cm : (r ? r.lo : 0), max: cx !== null ? cx : (r ? r.hi : undefined) };
+        return { min: cm !== null ? cm : (r ? r.lo : 0), max: cx !== null ? cx : (r ? r.hi : 1), step: r ? r.step : 1 };
     }
 
     function chartConfig(kind, data, scales, title, legend) {
@@ -596,6 +616,7 @@
         })];
         var yAxis = Object.assign(axisSpec(g), {
             side: 3, size: 58,
+            splits: function () { return yTicks; },
             values: function (self, splits) { return splits.map(numFmt); },
             label: (sc.y && sc.y.title && sc.y.title.text) || ''
         });
@@ -604,14 +625,18 @@
             x: { time: false },
             y: yScale(sc.y, 'y', data)
         };
+        var yTicks = tickList(scalesOut.y);
         if (needsY2) {
+            var y2R = yScale(sc.y1, 'y1', data);
+            var y2Ticks = tickList(y2R);
             axes.push(Object.assign(axisSpec(g), {
                 side: 1, size: 40,
                 grid: { stroke: 'rgba(255,255,255,.05)', width: 1 },
+                splits: function () { return y2Ticks; },
                 values: function (self, splits) { return splits.map(numFmt); },
                 label: (sc.y1 && sc.y1.title && sc.y1.title.text) || ''
             }));
-            scalesOut.y2 = yScale(sc.y1, 'y1', data);
+            scalesOut.y2 = y2R;
         }
         return {
             cfg: {
@@ -729,7 +754,7 @@
                     if (ds.fill !== false && typeof bg === 'string') {
                         ctx.setLineDash([]);
                         ctx.fillStyle = bg;
-                        ctx.globalAlpha = 0.16;
+                        ctx.globalAlpha = 0.08;
                         curve();
                         var g0 = runs[0].x[0], g1 = runs[runs.length - 1].x[runs[runs.length - 1].x.length - 1];
                         var by = snap(self.valToPos(0, scale, false));
