@@ -215,6 +215,8 @@
                 backgroundColor: 'rgba(74,163,255,.12)', fill: true, tension: .3,
                 pointRadius: 0, borderWidth: 2
             }]
+        }, {
+            y: { title: { display: true, text: 'กำลังไฟฟ้า (kW)' } }
         });
     }
 
@@ -482,8 +484,12 @@
     }
     function baseScales() {
         return {
-            x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { maxRotation: 0 } },
-            y: { grid: { color: 'rgba(255,255,255,.07)' }, beginAtZero: true }
+            x: {
+                grid: { display: false },
+                border: { display: true, color: 'rgba(51,65,85,.4)' },
+                ticks: { color: '#94a3b8', maxRotation: 0, minRotation: 0, autoSkip: false }
+            },
+            y: { beginAtZero: true, grid: { color: 'rgba(51,65,85,.35)' }, ticks: { color: '#94a3b8' } }
         };
     }
     function chartConfig(kind, data, scales, title, legend) {
@@ -495,8 +501,12 @@
                 interaction: { mode: 'index', intersect: false },
                 animation: { duration: 250 },
                 plugins: {
-                    legend: { display: legend !== false, labels: { color: '#b6c3d8', font: { size: 11 }, boxWidth: 14 } },
-                    tooltip: { mode: 'index', intersect: false, titleColor: '#e8eef7', bodyColor: '#cdd9ea' },
+                    legend: { display: legend !== false, labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 12, usePointStyle: true } },
+                    tooltip: {
+                        mode: 'index', intersect: false,
+                        backgroundColor: '#0b1220', borderColor: 'rgba(56,189,248,0.4)', borderWidth: 1,
+                        titleColor: '#94a3b8', bodyColor: '#e2e8f0', padding: 10
+                    },
                     title: { display: !!title, text: title || '', color: '#93a4bd', font: { size: 12 } }
                 },
                 scales: Object.assign(baseScales(), scales || {})
@@ -504,12 +514,63 @@
         };
         return c;
     }
+    function withAlpha(color, a) {
+        var rgb = null, m = /rgba?\(([^)]+)\)/.exec(color);
+        if (m) {
+            var p = m[1].split(',');
+            rgb = [p[0].trim(), p[1].trim(), p[2].trim()];
+        } else {
+            var h = String(color).replace('#', '');
+            if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+            if (h.length >= 6) {
+                var n = parseInt(h.slice(0, 6), 16);
+                if (!isNaN(n)) rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+            }
+        }
+        if (!rgb) return 'rgba(56,189,248,' + a + ')';
+        return 'rgba(' + rgb.join(',') + ',' + a + ')';
+    }
+    function applyLoadProfileDefaults() {
+        if (!Chart || Chart.__lpLoaded) return;
+        Chart.__lpLoaded = true;
+        Chart.defaults.font.family = '-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif';
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.borderColor = 'rgba(51,65,85,.4)';
+        Chart.defaults.animation = Chart.defaults.animation || {};
+    }
+    function applyLoadProfileStyle(data, kind) {
+        (data.datasets || []).forEach(function (ds) {
+            if (kind !== 'line' && ds.type !== 'line') return;
+            var reference = !!ds.borderDash;
+            if (ds.tension === undefined) ds.tension = 0.25;
+            if (ds.pointRadius === undefined) ds.pointRadius = 0;
+            if (ds.pointHitRadius === undefined) ds.pointHitRadius = 12;
+            if (ds.borderWidth === undefined) ds.borderWidth = 2;
+            if (reference) return;
+            if (ds.fill === undefined) ds.fill = true;
+            var col = typeof ds.borderColor === 'string' ? ds.borderColor : '#38bdf8';
+            if (typeof ds.backgroundColor !== 'function') {
+                ds.backgroundColor = (function (c) {
+                    return function (ctx) {
+                        var chart = ctx && ctx.chart, area = chart && chart.chartArea;
+                        if (!area) return withAlpha(c, 0.08);
+                        var g = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+                        g.addColorStop(0, withAlpha(c, 0.35));
+                        g.addColorStop(1, withAlpha(c, 0.02));
+                        return g;
+                    };
+                })(col);
+            }
+        });
+    }
     function makeChart(id, kind, data, scales, title, legend) {
         if (charts[id]) { charts[id].destroy(); charts[id] = null; }
         var canvas = $(id);
         var fresh = canvas.cloneNode(false);
         canvas.parentNode.insertBefore(fresh, canvas);
         canvas.parentNode.removeChild(canvas);
+        applyLoadProfileDefaults();
+        applyLoadProfileStyle(data, kind);
         charts[id] = new Chart(fresh, chartConfig(kind, data, scales, title, legend));
         return charts[id];
     }
