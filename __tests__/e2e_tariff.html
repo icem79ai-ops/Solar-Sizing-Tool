@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>☀️ Solar Sizing Tool</title>
+<title>โ€๏ธ Solar Sizing Tool</title>
 <script>
 window.__fatal = function (msg, extra) {
     var d = document.getElementById('fatal');
@@ -14,17 +14,17 @@ window.__fatal = function (msg, extra) {
         document.body.insertBefore(d, document.body.firstChild);
     }
     d.style.display = 'block';
-    d.textContent = '⚠️ ' + msg + (extra ? '\n' + extra : '');
+    d.textContent = 'โ ๏ธ ' + msg + (extra ? '\n' + extra : '');
 };
 window.addEventListener('error', function (e) {
-    window.__fatal('เกิดข้อผิดพลาด JavaScript: ' + (e.error && e.error.message || e.message || 'unknown'),
+    window.__fatal('เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ” JavaScript: ' + (e.error && e.error.message || e.message || 'unknown'),
         e.error && e.error.stack ? e.error.stack.split('\n').slice(0, 3).join('\n') : '');
 });
 window.addEventListener('unhandledrejection', function (e) {
-    window.__fatal('เกิดข้อผิดพลาด (async): ' + (e.reason && e.reason.message || e.reason));
+    window.__fatal('เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ” (async): ' + (e.reason && e.reason.message || e.reason));
 });
 </script>
-<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="../style.css?v=3">
 <script>
 window.__cap=[];
 window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e.error.message||e.message));});
@@ -33,130 +33,130 @@ window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e
 
 <header id="topbar">
   <div class="brand">
-    <h1>☀️ Solar Sizing Tool</h1>
-    <p class="sub">วิเคราะห์โหลดโปรไฟล์ 15 นาที เพื่อกำหนดขนาดโซลาร์เซลล์ที่เหมาะสม และคำนวณค่าไฟ/คืนทุน <span class="offline-badge">offline 100%</span></p>
+    <h1>โ€๏ธ Solar Sizing Tool</h1>
+    <p class="sub">เธงเธดเน€เธเธฃเธฒเธฐเธซเนเนเธซเธฅเธ”เนเธเธฃเนเธเธฅเน 15 เธเธฒเธ—เธต เน€เธเธทเนเธญเธเธณเธซเธเธ”เธเธเธฒเธ”เนเธเธฅเธฒเธฃเนเน€เธเธฅเธฅเนเธ—เธตเนเน€เธซเธกเธฒเธฐเธชเธก เนเธฅเธฐเธเธณเธเธงเธ“เธเนเธฒเนเธ/เธเธทเธเธ—เธธเธ <span class="offline-badge">offline 100%</span></p>
   </div>
-  <button class="icon-btn" id="btn-settings" title="ตั้งค่า / สำรองข้อมูล">⚙️</button>
+  <button class="icon-btn" id="btn-settings" title="เธ•เธฑเนเธเธเนเธฒ / เธชเธณเธฃเธญเธเธเนเธญเธกเธนเธฅ">โ๏ธ</button>
 </header>
 
 <nav id="tabs">
-  <button class="tab active" data-tab="data">📁 ข้อมูล</button>
-  <button class="tab" data-tab="analysis">📊 วิเคราะห์ Load</button>
-  <button class="tab" data-tab="sizing">☀️ ขนาด Solar</button>
-  <button class="tab" data-tab="savings">💰 ประหยัดค่าไฟ</button>
+  <button class="tab active" data-tab="data">๐“ เธเนเธญเธกเธนเธฅ</button>
+  <button class="tab" data-tab="analysis">๐“ เธงเธดเน€เธเธฃเธฒเธฐเธซเน Load</button>
+  <button class="tab" data-tab="sizing">โ€๏ธ เธเธเธฒเธ” Solar</button>
+  <button class="tab" data-tab="savings">๐’ฐ เธเธฃเธฐเธซเธขเธฑเธ”เธเนเธฒเนเธ</button>
 </nav>
 
 <main id="main">
 
-  <!-- ============================== TAB: ข้อมูล ============================= -->
+  <!-- ============================== TAB: เธเนเธญเธกเธนเธฅ ============================= -->
   <section id="tab-data" class="pane active">
     <div class="card">
-      <h2>📁 โหลดข้อมูล Load Profile</h2>
-      <p class="hint">รองรับไฟล์จากมิเตอร์ (ไฟล์ .xls HTML — เลือกทั้งไฟล์หลัก <b>และ</b> ไฟล์ <code>sheet001.htm</code> ในโฟลเดอร์ <code>*_files</code> พร้อมกัน) รวมถึงไฟล์ <code>.xlsx</code> / <code>.csv</code> รูปแบบ <b>วัน/เวลา | Power (kW)</b></p>
+      <h2>๐“ เนเธซเธฅเธ”เธเนเธญเธกเธนเธฅ Load Profile</h2>
+      <p class="hint">เธฃเธญเธเธฃเธฑเธเนเธเธฅเนเธเธฒเธเธกเธดเน€เธ•เธญเธฃเน (เนเธเธฅเน .xls HTML โ€” เน€เธฅเธทเธญเธเธ—เธฑเนเธเนเธเธฅเนเธซเธฅเธฑเธ <b>เนเธฅเธฐ</b> เนเธเธฅเน <code>sheet001.htm</code> เนเธเนเธเธฅเน€เธ”เธญเธฃเน <code>*_files</code> เธเธฃเนเธญเธกเธเธฑเธ) เธฃเธงเธกเธ–เธถเธเนเธเธฅเน <code>.xlsx</code> / <code>.csv</code> เธฃเธนเธเนเธเธ <b>เธงเธฑเธ/เน€เธงเธฅเธฒ | Power (kW)</b></p>
       <label class="upload" for="file-input">
-        <span class="up-icon">📤</span>
-        <span>คลิกเลือกไฟล์… <small>เลือกได้หลายไฟล์ (กด Ctrl เลือกหลาย)</small></span>
+        <span class="up-icon">๐“ค</span>
+        <span>เธเธฅเธดเธเน€เธฅเธทเธญเธเนเธเธฅเนโ€ฆ <small>เน€เธฅเธทเธญเธเนเธ”เนเธซเธฅเธฒเธขเนเธเธฅเน (เธเธ” Ctrl เน€เธฅเธทเธญเธเธซเธฅเธฒเธข)</small></span>
       </label>
       <input type="file" id="file-input" accept=".xls,.xlsx,.csv,.htm,.html" multiple hidden>
-      <div id="dropzone" class="dropzone">หรือ ลากไฟล์มาวางตรงนี้</div>
+      <div id="dropzone" class="dropzone">เธซเธฃเธทเธญ เธฅเธฒเธเนเธเธฅเนเธกเธฒเธงเธฒเธเธ•เธฃเธเธเธตเน</div>
       <div id="load-error" class="error-box" hidden></div>
     </div>
 
     <div id="file-info" hidden>
       <div class="card">
-        <h2>📇 รายละเอียดไฟล์</h2>
+        <h2>๐“ เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เนเธเธฅเน</h2>
         <div class="grid4" id="file-meta"></div>
       </div>
       <div class="card">
-        <h2>🧾 สรุปข้อมูล</h2>
+        <h2>๐งพ เธชเธฃเธธเธเธเนเธญเธกเธนเธฅ</h2>
         <div class="grid4" id="file-summary"></div>
       </div>
     </div>
   </section>
 
-  <!-- ============================== TAB: วิเคราะห์ ============================= -->
+  <!-- ============================== TAB: เธงเธดเน€เธเธฃเธฒเธฐเธซเน ============================= -->
   <section id="tab-analysis" class="pane">
     <div class="card">
-      <h2>🧾 ค่าไฟเดิม (ไม่มี Solar)</h2>
+      <h2>๐งพ เธเนเธฒเนเธเน€เธ”เธดเธก (เนเธกเนเธกเธต Solar)</h2>
       <div class="grid3" id="bill-metrics"></div>
       <p class="caption" id="bill-caption"></p>
       <div class="bill-detail" id="bill-detail"></div>
     </div>
     <div class="card">
-      <h2>📈 รูปแบบการโหลดรายวัน (เฉลี่ยต่อ 15 นาที)</h2>
+      <h2>๐“ เธฃเธนเธเนเธเธเธเธฒเธฃเนเธซเธฅเธ”เธฃเธฒเธขเธงเธฑเธ (เน€เธเธฅเธตเนเธขเธ•เนเธญ 15 เธเธฒเธ—เธต)</h2>
       <div class="chart-box"><canvas id="analysis-chart"></canvas></div>
     </div>
   </section>
 
-  <!-- ============================== TAB: ขนาด Solar ============================= -->
+  <!-- ============================== TAB: เธเธเธฒเธ” Solar ============================= -->
   <section id="tab-sizing" class="pane">
     <div class="card">
-      <h2>☀️ เลือกขนาด & ระบบ</h2>
+      <h2>โ€๏ธ เน€เธฅเธทเธญเธเธเธเธฒเธ” & เธฃเธฐเธเธ</h2>
       <div class="grid2">
         <div>
-          <label class="lbl">โหมดระบบ</label>
+          <label class="lbl">เนเธซเธกเธ”เธฃเธฐเธเธ</label>
           <div class="seg" id="sizing-mode">
             <button class="opt active" data-mode="ongrid">On-Grid</button>
             <button class="opt" data-mode="hybrid">Hybrid</button>
           </div>
-          <label class="lbl">ตัวประกอบการผลิต (เดือนล่าร PSH)</label>
+          <label class="lbl">เธ•เธฑเธงเธเธฃเธฐเธเธญเธเธเธฒเธฃเธเธฅเธดเธ• (เน€เธ”เธทเธญเธเธฅเนเธฒเธฃ PSH)</label>
           <select id="sizing-month"></select>
           <p class="caption" id="sizing-profile-note"></p>
         </div>
         <div id="sizing-battery-wrap">
-          <label class="lbl">🔋 ความจุแบตเตอรี่ (kWh)</label>
+          <label class="lbl">๐” เธเธงเธฒเธกเธเธธเนเธเธ•เน€เธ•เธญเธฃเธตเน (kWh)</label>
           <input type="range" id="sizing-battery" min="0" max="100" step="5" value="10">
           <div id="sizing-battery-val" class="range-val">10 kWh</div>
-          <button class="btn" id="btn-batt-recommend">✨ แนะนำความจุแบต</button>
-          <p class="caption">DoD 80% · efficiency 90% · ราคา 9,000 บาท/kWh</p>
+          <button class="btn" id="btn-batt-recommend">โจ เนเธเธฐเธเธณเธเธงเธฒเธกเธเธธเนเธเธ•</button>
+          <p class="caption">DoD 80% ยท efficiency 90% ยท เธฃเธฒเธเธฒ 9,000 เธเธฒเธ—/kWh</p>
         </div>
       </div>
       <p class="caption" id="basis-caption"></p>
     </div>
 
     <div class="card">
-      <h2>🏆 ขนาดที่แนะนำ</h2>
+      <h2>๐ เธเธเธฒเธ”เธ—เธตเนเนเธเธฐเธเธณ</h2>
       <div class="grid4" id="rec-metrics"></div>
       <div id="batt-recommend-box" class="batt-box" hidden></div>
     </div>
 
     <div class="card">
-      <h2>📋 ตารางเปรียบเทียบทุกขนาด</h2>
+      <h2>๐“ เธ•เธฒเธฃเธฒเธเน€เธเธฃเธตเธขเธเน€เธ—เธตเธขเธเธ—เธธเธเธเธเธฒเธ”</h2>
       <div class="table-scroll">
         <table id="sizing-table">
           <thead><tr>
-            <th>ขนาด (kWp)</th><th>ผลิต (kWh)</th><th>ใช้เอง (kWh)</th>
-            <th>เหลือทิ้ง/ส่งGrid (kWh)</th><th>ประหยัด/เดือน</th><th>% ลด</th>
-            <th>คืนทุน (ปี)</th><th>ใช้เอง (%)</th><th>ลงทุน</th><th></th>
+            <th>เธเธเธฒเธ” (kWp)</th><th>เธเธฅเธดเธ• (kWh)</th><th>เนเธเนเน€เธญเธ (kWh)</th>
+            <th>เน€เธซเธฅเธทเธญเธ—เธดเนเธ/เธชเนเธGrid (kWh)</th><th>เธเธฃเธฐเธซเธขเธฑเธ”/เน€เธ”เธทเธญเธ</th><th>% เธฅเธ”</th>
+            <th>เธเธทเธเธ—เธธเธ (เธเธต)</th><th>เนเธเนเน€เธญเธ (%)</th><th>เธฅเธเธ—เธธเธ</th><th></th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
-      <p class="caption">เหลือทิ้ง = ไฟที่ผลิตเกิน ไม่ถูกใช้เอง ไม่เก็บลงแบต (On-Grid ส่งกลับ Grid ไม่ได้เงิน, Hybrid ถูกตัดทิ้ง)</p>
+      <p class="caption">เน€เธซเธฅเธทเธญเธ—เธดเนเธ = เนเธเธ—เธตเนเธเธฅเธดเธ•เน€เธเธดเธ เนเธกเนเธ–เธนเธเนเธเนเน€เธญเธ เนเธกเนเน€เธเนเธเธฅเธเนเธเธ• (On-Grid เธชเนเธเธเธฅเธฑเธ Grid เนเธกเนเนเธ”เนเน€เธเธดเธ, Hybrid เธ–เธนเธเธ•เธฑเธ”เธ—เธดเนเธ)</p>
     </div>
 
     <div class="card">
-      <h2>📊 ประหยัด &amp; คืนทุน ต่อขนาด</h2>
+      <h2>๐“ เธเธฃเธฐเธซเธขเธฑเธ” &amp; เธเธทเธเธ—เธธเธ เธ•เนเธญเธเธเธฒเธ”</h2>
       <div class="chart-box" style="height:320px"><canvas id="sizing-chart"></canvas></div>
       <div id="sizing-chart-extra" class="chart-box" style="height:300px"></div>
     </div>
 
     <div class="card">
-      <h2>📤 ส่งออกผลลัพธ์</h2>
+      <h2>๐“ค เธชเนเธเธญเธญเธเธเธฅเธฅเธฑเธเธเน</h2>
       <div class="btn-row">
-        <button class="btn" id="btn-export-xlsx">⬇️ Excel (.xlsx)</button>
-        <button class="btn" id="btn-export-csv">⬇️ CSV</button>
+        <button class="btn" id="btn-export-xlsx">โฌ๏ธ Excel (.xlsx)</button>
+        <button class="btn" id="btn-export-csv">โฌ๏ธ CSV</button>
       </div>
     </div>
   </section>
 
-  <!-- ============================== TAB: ประหยัดค่าไฟ ============================= -->
+  <!-- ============================== TAB: เธเธฃเธฐเธซเธขเธฑเธ”เธเนเธฒเนเธ ============================= -->
   <section id="tab-savings" class="pane">
     <div class="card">
-      <h2>💰 คำนวณค่าไฟ &amp; คืนทุน (ลองปรับขนาดได้)</h2>
+      <h2>๐’ฐ เธเธณเธเธงเธ“เธเนเธฒเนเธ &amp; เธเธทเธเธ—เธธเธ (เธฅเธญเธเธเธฃเธฑเธเธเธเธฒเธ”เนเธ”เน)</h2>
       <div class="grid2">
         <div>
-          <label class="lbl">โหมดระบบ</label>
+          <label class="lbl">เนเธซเธกเธ”เธฃเธฐเธเธ</label>
           <div class="seg" id="sav-mode">
             <button class="opt active" data-mode="ongrid">On-Grid</button>
             <button class="opt" data-mode="hybrid">Hybrid</button>
@@ -164,11 +164,11 @@ window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e
         </div>
         <div></div>
       </div>
-      <label class="lbl">ขนาด Solar (kWp)</label>
+      <label class="lbl">เธเธเธฒเธ” Solar (kWp)</label>
       <input type="range" id="sav-size" min="1" max="30" step="1" value="5">
       <div id="sav-size-val" class="range-val">5 kWp</div>
       <div id="sav-battery-wrap">
-        <label class="lbl">🔋 ความจุแบตเตอรี่ (kWh)</label>
+        <label class="lbl">๐” เธเธงเธฒเธกเธเธธเนเธเธ•เน€เธ•เธญเธฃเธตเน (kWh)</label>
         <input type="range" id="sav-battery" min="0" max="100" step="5" value="10">
         <div id="sav-battery-val" class="range-val">10 kWh</div>
       </div>
@@ -176,20 +176,20 @@ window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e
     </div>
 
     <div class="card">
-      <h2>💸 ผลลัพธ์</h2>
+      <h2>๐’ธ เธเธฅเธฅเธฑเธเธเน</h2>
       <div class="grid4" id="save-metrics"></div>
       <p class="caption" id="waste-caption"></p>
     </div>
 
     <div class="card">
-      <h2>📈 โหลด vs Solar vs Grid (วันแทน)</h2>
+      <h2>๐“ เนเธซเธฅเธ” vs Solar vs Grid (เธงเธฑเธเนเธ—เธ)</h2>
       <div class="chart-box" style="height:340px"><canvas id="daily-chart"></canvas></div>
     </div>
 
     <div class="card" id="soc-card">
-      <h2>🔋 สถานะการชาร์จแบต (SoC)</h2>
+      <h2>๐” เธชเธ–เธฒเธเธฐเธเธฒเธฃเธเธฒเธฃเนเธเนเธเธ• (SoC)</h2>
       <div class="chart-box" style="height:240px"><canvas id="soc-chart"></canvas></div>
-      <p class="caption">🧭 วิธีอ่าน: SoC เริ่มต้น 50% — ช่วงกลางวันโซลาร์ผลิตเกินโหลดแบตจะชาร์จขึ้น 100% (เต็ม) ช่วงเย็น-กลางคืนแบตคายไฟให้โหลด ทำให้กริดจ่ายน้อยลง จนกว่าจะหมด (0%)</p>
+      <p class="caption">๐งญ เธงเธดเธเธตเธญเนเธฒเธ: SoC เน€เธฃเธดเนเธกเธ•เนเธ 50% โ€” เธเนเธงเธเธเธฅเธฒเธเธงเธฑเธเนเธเธฅเธฒเธฃเนเธเธฅเธดเธ•เน€เธเธดเธเนเธซเธฅเธ”เนเธเธ•เธเธฐเธเธฒเธฃเนเธเธเธถเนเธ 100% (เน€เธ•เนเธก) เธเนเธงเธเน€เธขเนเธ-เธเธฅเธฒเธเธเธทเธเนเธเธ•เธเธฒเธขเนเธเนเธซเนเนเธซเธฅเธ” เธ—เธณเนเธซเนเธเธฃเธดเธ”เธเนเธฒเธขเธเนเธญเธขเธฅเธ เธเธเธเธงเนเธฒเธเธฐเธซเธกเธ” (0%)</p>
     </div>
   </section>
 </main>
@@ -198,69 +198,69 @@ window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e
 <div id="modal" class="modal" hidden>
   <div class="modal-box">
     <div class="modal-head">
-      <h2>⚙️ ตั้งค่า</h2>
-      <button class="icon-btn" id="btn-close-settings">✕</button>
+      <h2>โ๏ธ เธ•เธฑเนเธเธเนเธฒ</h2>
+      <button class="icon-btn" id="btn-close-settings">โ•</button>
     </div>
     <div class="modal-body">
-      <label class="lbl">อัตราค่าไฟ</label>
+      <label class="lbl">เธญเธฑเธ•เธฃเธฒเธเนเธฒเนเธ</label>
       <select id="set-tariff-mode">
-        <option value="auto">อัตโนมัติ (ตามไฟล์ — ค่าเริ่มต้น TOU)</option>
+        <option value="auto">เธญเธฑเธ•เนเธเธกเธฑเธ•เธด (เธ•เธฒเธกเนเธเธฅเน โ€” เธเนเธฒเน€เธฃเธดเนเธกเธ•เนเธ TOU)</option>
         <option value="tou">TOU (On/Off-Peak)</option>
-        <option value="progressive">อัตราก้าวหน้า (บ้านอยู่อาศัย)</option>
+        <option value="progressive">เธญเธฑเธ•เธฃเธฒเธเนเธฒเธงเธซเธเนเธฒ (เธเนเธฒเธเธญเธขเธนเนเธญเธฒเธจเธฑเธข)</option>
         <option value="flat">Flat</option>
       </select>
       <div id="set-tou-rate">
-        <label class="lbl">ค่าไฟ On-Peak (บาท/kWh)</label>
+        <label class="lbl">เธเนเธฒเนเธ On-Peak (เธเธฒเธ—/kWh)</label>
         <input type="number" step="0.0001" id="set-on-rate">
-        <label class="lbl">ค่าไฟ Off-Peak (บาท/kWh)</label>
+        <label class="lbl">เธเนเธฒเนเธ Off-Peak (เธเธฒเธ—/kWh)</label>
         <input type="number" step="0.0001" id="set-off-rate">
       </div>
-      <label class="lbl">ค่าไฟ Flat (บาท/kWh)</label>
+      <label class="lbl">เธเนเธฒเนเธ Flat (เธเธฒเธ—/kWh)</label>
       <input type="number" step="0.0001" id="set-flat-rate">
       <div id="set-prog-rate">
-        <label class="lbl">อัตราก้าวหน้า (บ้านอยู่อาศัย — บาท/kWh)</label>
+        <label class="lbl">เธญเธฑเธ•เธฃเธฒเธเนเธฒเธงเธซเธเนเธฒ (เธเนเธฒเธเธญเธขเธนเนเธญเธฒเธจเธฑเธข โ€” เธเธฒเธ—/kWh)</label>
         <div class="grid2">
-          <div><label class="lbl sm">ขั้น 1 (0–15 kWh)</label><input type="number" step="0.0001" id="set-prog-1"></div>
-          <div><label class="lbl sm">ขั้น 2 (15–25 kWh)</label><input type="number" step="0.0001" id="set-prog-2"></div>
+          <div><label class="lbl sm">เธเธฑเนเธ 1 (0โ€“15 kWh)</label><input type="number" step="0.0001" id="set-prog-1"></div>
+          <div><label class="lbl sm">เธเธฑเนเธ 2 (15โ€“25 kWh)</label><input type="number" step="0.0001" id="set-prog-2"></div>
         </div>
         <div class="grid2">
-          <div><label class="lbl sm">ขั้น 3 (25–200 kWh)</label><input type="number" step="0.0001" id="set-prog-3"></div>
-          <div><label class="lbl sm">ขั้น 4 (200–400 kWh)</label><input type="number" step="0.0001" id="set-prog-4"></div>
+          <div><label class="lbl sm">เธเธฑเนเธ 3 (25โ€“200 kWh)</label><input type="number" step="0.0001" id="set-prog-3"></div>
+          <div><label class="lbl sm">เธเธฑเนเธ 4 (200โ€“400 kWh)</label><input type="number" step="0.0001" id="set-prog-4"></div>
         </div>
         <div class="grid2">
-          <div><label class="lbl sm">ขั้น 5 (มากกว่า 400 kWh)</label><input type="number" step="0.0001" id="set-prog-5"></div>
-          <div><label class="lbl sm">ค่าบริการ/เดือน</label><input type="number" step="0.01" id="set-prog-service"></div>
+          <div><label class="lbl sm">เธเธฑเนเธ 5 (เธกเธฒเธเธเธงเนเธฒ 400 kWh)</label><input type="number" step="0.0001" id="set-prog-5"></div>
+          <div><label class="lbl sm">เธเนเธฒเธเธฃเธดเธเธฒเธฃ/เน€เธ”เธทเธญเธ</label><input type="number" step="0.01" id="set-prog-service"></div>
         </div>
       </div>
       <div class="grid2">
-        <div><label class="lbl">ค่าบริการ/เดือน</label><input type="number" step="0.01" id="set-service"></div>
-        <div><label class="lbl">ค่า Ft (บาท/kWh)</label><input type="number" step="0.0001" id="set-ft"></div>
+        <div><label class="lbl">เธเนเธฒเธเธฃเธดเธเธฒเธฃ/เน€เธ”เธทเธญเธ</label><input type="number" step="0.01" id="set-service"></div>
+        <div><label class="lbl">เธเนเธฒ Ft (เธเธฒเธ—/kWh)</label><input type="number" step="0.0001" id="set-ft"></div>
       </div>
       <div class="grid2">
         <div><label class="lbl">VAT (%)</label><input type="number" step="0.1" id="set-vat"></div>
-        <div><label class="lbl">ราคาโซลาร์ (บาท/kWp)</label><input type="number" step="100" id="set-solar-price"></div>
+        <div><label class="lbl">เธฃเธฒเธเธฒเนเธเธฅเธฒเธฃเน (เธเธฒเธ—/kWp)</label><input type="number" step="100" id="set-solar-price"></div>
       </div>
       <div class="grid2">
-        <div><label class="lbl">Loss ระบบโซลาร์ (%)</label><input type="number" step="1" id="set-loss"></div>
-        <div><label class="lbl">ราคาแบต (บาท/kWh)</label><input type="number" step="100" id="set-batt-price"></div>
+        <div><label class="lbl">Loss เธฃเธฐเธเธเนเธเธฅเธฒเธฃเน (%)</label><input type="number" step="1" id="set-loss"></div>
+        <div><label class="lbl">เธฃเธฒเธเธฒเนเธเธ• (เธเธฒเธ—/kWh)</label><input type="number" step="100" id="set-batt-price"></div>
       </div>
-      <p class="caption">ตัวเลข 36,064/36,269 บาท เป็นบิล TOU รายเดือนของไฟล์ทดสอบ มีผล ไม่ใช่การคาดเดา</p>
+      <p class="caption">เธ•เธฑเธงเน€เธฅเธ 36,064/36,269 เธเธฒเธ— เน€เธเนเธเธเธดเธฅ TOU เธฃเธฒเธขเน€เธ”เธทเธญเธเธเธญเธเนเธเธฅเนเธ—เธ”เธชเธญเธ เธกเธตเธเธฅ เนเธกเนเนเธเนเธเธฒเธฃเธเธฒเธ”เน€เธ”เธฒ</p>
     </div>
     <div class="modal-foot">
-      <button class="btn" id="btn-backup">💾 สำรองข้อมูล (.json)</button>
-      <button class="btn" id="btn-restore">📂 กู้คืน</button>
+      <button class="btn" id="btn-backup">๐’พ เธชเธณเธฃเธญเธเธเนเธญเธกเธนเธฅ (.json)</button>
+      <button class="btn" id="btn-restore">๐“ เธเธนเนเธเธทเธ</button>
       <input type="file" id="restore-input" accept=".json" hidden>
-      <button class="btn primary" id="btn-save-settings">บันทึก</button>
+      <button class="btn primary" id="btn-save-settings">เธเธฑเธเธ—เธถเธ</button>
     </div>
   </div>
 </div>
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="../lib/chart.umd.min.js"></script>
-<script src="../lib/xlsx.full.min.js"></script>
-<script src="../core.js"></script>
-<script src="../app.js"></script>
+<script src="../lib/chart.umd.min.js?v=3"></script>
+<script src="../lib/xlsx.full.min.js?v=3"></script>
+<script src="../core.js?v=3"></script>
+<script src="../app.js?v=3"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];
@@ -268,9 +268,9 @@ window.addEventListener('load', function () {
     if (typeof Chart === 'undefined') miss.push('lib/chart.umd.min.js');
     if (typeof XLSX === 'undefined') miss.push('lib/xlsx.full.min.js');
     if (miss.length) {
-        window.__fatal('โหลดสคริปต์ไม่ครบ: ' + miss.join(', ') +
-            ' — ตรวจว่าคัดลอกโฟลเดอร์ครบ (ต้องมีโฟลเดอร์ lib/ อยู่ข้างๆ index.html) ' +
-            'และเปิดจากไฟล์ index.html โดยตรง ไม่ใช่เปิดจากภายใน .zip');
+        window.__fatal('เนเธซเธฅเธ”เธชเธเธฃเธดเธเธ•เนเนเธกเนเธเธฃเธ: ' + miss.join(', ') +
+            ' โ€” เธ•เธฃเธงเธเธงเนเธฒเธเธฑเธ”เธฅเธญเธเนเธเธฅเน€เธ”เธญเธฃเนเธเธฃเธ (เธ•เนเธญเธเธกเธตเนเธเธฅเน€เธ”เธญเธฃเน lib/ เธญเธขเธนเนเธเนเธฒเธเน index.html) ' +
+            'เนเธฅเธฐเน€เธเธดเธ”เธเธฒเธเนเธเธฅเน index.html เนเธ”เธขเธ•เธฃเธ เนเธกเนเนเธเนเน€เธเธดเธ”เธเธฒเธเธ เธฒเธขเนเธ .zip');
     }
 });
 </script>
@@ -296,7 +296,7 @@ setTimeout(function(){
     var sel=document.getElementById('set-tariff-mode');
     sel.value='flat';
     sel.dispatchEvent(new Event('change',{bubbles:true}));
-    __log('bill-flat-live='+__txt('#bill-cap').replace('ค','')+__txt('#bill-metrics').slice(0,60));
+    __log('bill-flat-live='+__txt('#bill-cap').replace('เธ','')+__txt('#bill-metrics').slice(0,60));
     sel.value='progressive';
     sel.dispatchEvent(new Event('change',{bubbles:true}));
     __log('bill-prog-live='+__txt('#bill-metrics').slice(0,75));

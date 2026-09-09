@@ -24,7 +24,7 @@ window.addEventListener('unhandledrejection', function (e) {
     window.__fatal('เกิดข้อผิดพลาด (async): ' + (e.reason && e.reason.message || e.reason));
 });
 </script>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -254,10 +254,10 @@ window.addEventListener('unhandledrejection', function (e) {
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="lib/chart.umd.min.js"></script>
-<script src="lib/xlsx.full.min.js"></script>
-<script src="core.js"></script>
-<script src="app.js"></script>
+<script src="lib/chart.umd.min.js?v=3"></script>
+<script src="lib/xlsx.full.min.js?v=3"></script>
+<script src="core.js?v=3"></script>
+<script src="app.js?v=3"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];
