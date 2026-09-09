@@ -3,8 +3,6 @@
 แอปคำนวณขนาดโซล่าเซลล์จากไฟล์ข้อมูลมิเตอร์ — **ใช้งานแบบออฟไลน์ 100%** ไม่ต้องต่อเน็ต ไม่ต้องลง Python
 เปิดไฟล์ `index.html` แล้วใช้งานได้เลย (double-click เพื่อเปิดในเบราว์เซอร์ Chrome / Edge / ธรรมดาได้ทุกตัว)
 
-**ลองใช้ได้ทันทีออนไลน์:** https://icem79ai-ops.github.io/Solar-Sizing-Tool/
-
 ![ตัวอย่างกราฟสไตล์ Load Profile](screenshot.png)
 
 เลขที่คำนวณ **ตรงกับเวอร์ชัน Python (Streamlit)** ที่ผ่านการตรวจสอบแล้ว
@@ -99,11 +97,3 @@ Solar-Sizing-Tool/
 - ไฟล์ .xls ทั่วไป (`สินค้าเป็น HTML แม้ชื่อ .xls`) — จำเป็นต้องเลือก `sheet001.htm` ด้วยเสมอ ถ้าเลือกผิดแอปจะแจ้งเตือน
 - ถ้าข้อมูลมี 1 วัน แอปจะประมาณค่าใช้ไฟเต็มเดือน = ×30 วัน และแจ้งไว้บนหน้า
 - ตัวเลขทั้งหมดใช้หน่วยบาทไทย และคืนทุนเป็นปี
-
-## 🚀 Deploy ขึ้น GitHub Pages (สำหรับนักพัฒนา)
-
-```powershell
-git push origin main
-# เปิด Settings → Pages → Source: branch main / (root)
-# เว็บอยู่ที่ https://icem79ai-ops.github.io/Solar-Sizing-Tool/
-```
