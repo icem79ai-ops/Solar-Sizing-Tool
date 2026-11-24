@@ -72,7 +72,54 @@
         return out;
     }
 
+    // ---- อัตราที่มีค่าดีมานด์ (ประเภท 3 กิจการขนาดกลาง, แรงดันไม่เกิน 33 kV)
+    // ที่มา: ประกาศ กฟภ. กันยายน 2569 (ข้อ 3.1.2, 3.1.3, 3.2.2, 3.2.3) — ราคาไม่รวม VAT
+    // normal: ดีมานด์ = kW สูงสุดทุกช่วงในเดือน · tou: ดีมานด์ Peak = kW สูงสุดช่วง 09:00–22:00
+    var DEMAND_TARIFFS = {
+        d31:  { label: 'ประเภท 3.1.2 อัตราปกติ (22–33 kV)', kind: 'normal', demandRate: 196.26, energyRate: 3.1471, serviceFee: 312.24 },
+        d31s: { label: 'ประเภท 3.1.3 อัตราปกติ (ต่ำกว่า 22 kV)', kind: 'normal', demandRate: 221.50, energyRate: 3.1751, serviceFee: 312.24 },
+        d32:  { label: 'ประเภท 3.2.2 TOU (22–33 kV)', kind: 'tou', peakDemandRate: 132.93, peakRate: 4.1839, offRate: 2.6037, serviceFee: 312.24 },
+        d32s: { label: 'ประเภท 3.2.3 TOU (ต่ำกว่า 22 kV)', kind: 'tou', peakDemandRate: 210.00, peakRate: 4.3297, offRate: 2.6369, serviceFee: 312.24 }
+    };
+
+    // คิดค่าไฟต่อเดือนของอัตราที่มีดีมานด์ (รวม FT และ VAT)
+    // ยังไม่รวม: อัตราขั้นต่ำ 70% ของดีมานด์สูงสุด 12 เดือน, ค่า Power Factor, วันหยุดพิเศษ
+    function demandBill(slots, key) {
+        var t = DEMAND_TARIFFS[key];
+        if (!t) throw new Error('ไม่รู้จักอัตราดีมานด์: ' + key);
+        var s = cleanSlots(slots);
+        var maxAll = 0, maxOn = 0;
+        for (var i = 0; i < SLOTS; i++) {
+            var minute = i * 15;
+            var onPeak = minute >= ON_START_MIN && minute < ON_END_MIN;
+            if (s[i] > maxAll) maxAll = s[i];
+            if (onPeak && s[i] > maxOn) maxOn = s[i];
+        }
+        var d = dailyKwh(s);
+        var on = d.onKwh * DAYS_PER_MONTH, off = d.offKwh * DAYS_PER_MONTH, total = on + off;
+        var demandCharge, energyCharge, demandKw;
+        if (t.kind === 'normal') {
+            demandKw = maxAll;
+            demandCharge = demandKw * t.demandRate;
+            energyCharge = total * t.energyRate;
+        } else {
+            demandKw = maxOn;
+            demandCharge = demandKw * t.peakDemandRate;
+            energyCharge = on * t.peakRate + off * t.offRate;
+        }
+        var ft = total * Core.DEFAULT_SETTINGS.tariff.ftRate;
+        var subtotal = demandCharge + energyCharge + ft + t.serviceFee;
+        var vat = subtotal * Core.DEFAULT_SETTINGS.tariff.vatRate;
+        return {
+            key: key, label: t.label, demandKw: demandKw, monthlyKwh: total,
+            demandCharge: demandCharge, energyCharge: energyCharge, ftCharge: ft,
+            serviceFee: t.serviceFee, vat: vat, grandTotal: subtotal + vat,
+            demandIncluded: true
+        };
+    }
+
     return {
+        DEMAND_TARIFFS: DEMAND_TARIFFS, demandBill: demandBill,
         SLOTS: SLOTS, dailyKwh: dailyKwh, monthlyBill: monthlyBill,
         compareAll: compareAll, cleanSlots: cleanSlots, hourlyToSlots: hourlyToSlots
     };
