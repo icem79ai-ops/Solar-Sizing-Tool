@@ -24,7 +24,7 @@ window.addEventListener('unhandledrejection', function (e) {
     window.__fatal('เกิดข้อผิดพลาด (async): ' + (e.reason && e.reason.message || e.reason));
 });
 </script>
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -75,6 +75,11 @@ window.addEventListener('unhandledrejection', function (e) {
   <section id="tab-analysis" class="pane">
     <div class="card">
       <h2>🧾 ค่าไฟเดิม (ไม่มี Solar)</h2>
+      <div class="tariff-row">
+        <label class="lbl" for="ana-tariff">คิดค่าไฟด้วยอัตรา</label>
+        <select id="ana-tariff"></select>
+        <p class="caption" id="ana-tariff-detail"></p>
+      </div>
       <div class="grid3" id="bill-metrics"></div>
       <p class="caption" id="bill-caption"></p>
       <div class="bill-detail" id="bill-detail"></div>
@@ -199,34 +204,31 @@ window.addEventListener('unhandledrejection', function (e) {
       <button class="icon-btn" id="btn-close-settings">✕</button>
     </div>
     <div class="modal-body">
-      <label class="lbl">อัตราค่าไฟ</label>
-      <select id="set-tariff-mode">
-        <option value="auto">อัตโนมัติ (ตามไฟล์ — ค่าเริ่มต้น TOU)</option>
+      <label class="lbl">แบบอัตราค่าไฟ (การไฟฟ้า)</label>
+      <select id="set-tariff-preset">
+        <option value="auto">ตรวจจากไฟล์ (อัตโนมัติ)</option>
         <option value="tou">TOU (On/Off-Peak)</option>
-        <option value="progressive">อัตราก้าวหน้า (บ้านอยู่อาศัย)</option>
-        <option value="flat">Flat</option>
+        <option value="prog5">อัตราก้าวหน้า 5 ขั้น (1.1.1)</option>
+        <option value="prog3">อัตราก้าวหน้า 3 ขั้น (1.1.2)</option>
+        <option value="flat">อัตราคงที่ (Flat)</option>
+        <option value="custom">กำหนดเอง (แก้ตัวเลขเอง)</option>
       </select>
+      <p class="caption" id="set-preset-detail"></p>
       <div id="set-tou-rate">
         <label class="lbl">ค่าไฟ On-Peak (บาท/kWh)</label>
         <input type="number" step="0.0001" id="set-on-rate">
         <label class="lbl">ค่าไฟ Off-Peak (บาท/kWh)</label>
         <input type="number" step="0.0001" id="set-off-rate">
       </div>
-      <label class="lbl">ค่าไฟ Flat (บาท/kWh)</label>
-      <input type="number" step="0.0001" id="set-flat-rate">
+      <div id="set-flat-wrap">
+        <label class="lbl">ค่าไฟ Flat (บาท/kWh)</label>
+        <input type="number" step="0.0001" id="set-flat-rate">
+      </div>
       <div id="set-prog-rate">
-        <label class="lbl">อัตราก้าวหน้า (บ้านอยู่อาศัย — บาท/kWh)</label>
+        <label class="lbl">อัตราก้าวหน้า (บาท/kWh)</label>
+        <div id="set-prog-tiers"></div>
         <div class="grid2">
-          <div><label class="lbl sm">ขั้น 1 (0–15 kWh)</label><input type="number" step="0.0001" id="set-prog-1"></div>
-          <div><label class="lbl sm">ขั้น 2 (15–25 kWh)</label><input type="number" step="0.0001" id="set-prog-2"></div>
-        </div>
-        <div class="grid2">
-          <div><label class="lbl sm">ขั้น 3 (25–200 kWh)</label><input type="number" step="0.0001" id="set-prog-3"></div>
-          <div><label class="lbl sm">ขั้น 4 (200–400 kWh)</label><input type="number" step="0.0001" id="set-prog-4"></div>
-        </div>
-        <div class="grid2">
-          <div><label class="lbl sm">ขั้น 5 (มากกว่า 400 kWh)</label><input type="number" step="0.0001" id="set-prog-5"></div>
-          <div><label class="lbl sm">ค่าบริการ/เดือน</label><input type="number" step="0.01" id="set-prog-service"></div>
+          <div><label class="lbl sm">ค่าบริการ/เดือน (อัตราก้าวหน้า)</label><input type="number" step="0.01" id="set-prog-service"></div>
         </div>
       </div>
       <div class="grid2">
@@ -254,10 +256,10 @@ window.addEventListener('unhandledrejection', function (e) {
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="lib/chart.umd.min.js?v=3"></script>
-<script src="lib/xlsx.full.min.js?v=3"></script>
-<script src="core.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="lib/chart.umd.min.js?v=4"></script>
+<script src="lib/xlsx.full.min.js?v=4"></script>
+<script src="core.js?v=4"></script>
+<script src="app.js?v=4"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];

@@ -68,6 +68,50 @@ if (!tou.error) {
         Core.progressiveCharge(8167, [[15, 1], [25, 2.9882], [200, 3], [400, 4.1584], [null, 4.3583]]).toFixed(2));
     ok('PROG: progressive > TOU > flat ordering', aProg.bill.grandTotal > 38040 && aFlat.bill.grandTotal > 36269,
         aProg.bill.grandTotal.toFixed(0) + ' / ' + aFlat.bill.grandTotal.toFixed(0));
+
+    // ---- presets (อัตรามาตรฐานจาก modules/tariff.py) ----
+    ok('PRESET: 4 presets exported', Core.PRESET_ORDER.length === 4, Core.PRESET_ORDER.join(','));
+    const p3 = Core.tariffFromPreset('prog3', S.tariff);
+    ok('PRESET prog3: mode=progressive', p3.mode === 'progressive', p3.mode);
+    ok('PRESET prog3: 3 tiers, svc 24.62', p3.progTiers.length === 3 && near(p3.progServiceFee, 24.62, 1e-9),
+        p3.progTiers.map(t => t[1]).join('/') + ' svc ' + p3.progServiceFee);
+    const p5 = Core.tariffFromPreset('prog5', S.tariff);
+    ok('PRESET prog5: 5 tiers, svc 8.19', p5.progTiers.length === 5 && near(p5.progServiceFee, 8.19, 1e-9),
+        p5.progTiers.map(t => t[1]).join('/') + ' svc ' + p5.progServiceFee);
+    ok('PRESET prog5: first tier 2.3488 / last 4.3583',
+        near(p5.progTiers[0][1], 2.3488, 1e-9) && near(p5.progTiers[4][1], 4.3583, 1e-9));
+    const pTou = Core.tariffFromPreset('tou', S.tariff);
+    ok('PRESET tou: keeps Ft/VAT/window from base',
+        pTou.ftRate === S.tariff.ftRate && pTou.vatRate === S.tariff.vatRate &&
+        pTou.onPeakStartMin === S.tariff.onPeakStartMin && pTou.onPeakEndMin === S.tariff.onPeakEndMin,
+        pTou.ftRate + '/' + pTou.vatRate);
+    ok('PRESET tou: rates 5.7982 / 2.6369 / svc 87.44',
+        near(pTou.onPeakRate, 5.7982, 1e-9) && near(pTou.offPeakRate, 2.6369, 1e-9) && near(pTou.serviceFee, 87.44, 1e-9));
+
+    // ---- auto-detect จากช่อง Tariff ในไฟล์ ----
+    ok('DETECT: TOU -> tou', Core.presetFromTariffCode('TOU') === 'tou');
+    ok('DETECT: 1.1.1 -> prog5', Core.presetFromTariffCode('1.1.1') === 'prog5');
+    ok('DETECT: 1.1.2 -> prog3', Core.presetFromTariffCode('1.1.2') === 'prog3');
+    ok('DETECT: 3.2.2 -> tou', Core.presetFromTariffCode('3.2.2') === 'tou');
+    ok('DETECT: null -> null', Core.presetFromTariffCode(null) === null);
+
+    // ---- อัตราก้าวหน้า: ขั้นคิดบนหน่วยต่อเดือน (nDays) ----
+    const ana3 = Core.analyzeData(tou, p3, tou.nDays);
+    ok('PROG/MONTH: tierScaled flag', ana3.bill.tierScaled === true);
+    ok('PROG/MONTH: monthly kWh = period*30/nDays',
+        near(ana3.bill.monthlyTotalKwh, (ana3.bill.totalKwh * 30 / tou.nDays), 0.01),
+        ana3.bill.monthlyTotalKwh.toFixed(1));
+    ok('PROG/MONTH: monthly bill > period-only bill',
+        ana3.bill.monthlyGrandTotal > aProg.bill.grandTotal,
+        ana3.bill.monthlyGrandTotal.toFixed(0) + ' vs ' + aProg.bill.grandTotal.toFixed(0));
+    // ไม่ส่ง nDays = พฤติกรรมเดิม (ขั้นคิดบนหน่วยของช่วงข้อมูล เท่ากับ Python)
+    const ana3raw = Core.analyzeData(tou, p3);
+    const legacy = Core.billFromKwh(ana3.onPeakKwh + ana3.offPeakKwh, 0, p3);
+    ok('PROG/MONTH: no nDays keeps legacy bill', near(ana3raw.bill.grandTotal, legacy.grandTotal, 0.01),
+        ana3raw.bill.grandTotal.toFixed(2) + ' vs ' + legacy.grandTotal.toFixed(2));
+    ok('PROG/MONTH: legacy under-charges vs true monthly',
+        ana3raw.bill.grandTotal < ana3.bill.monthlyGrandTotal * tou.nDays / 30,
+        ana3raw.bill.grandTotal.toFixed(0) + ' < ' + (ana3.bill.monthlyGrandTotal * tou.nDays / 30).toFixed(0));
 }
 
 // ---------- household BIG file (ISO 1-day) ----------

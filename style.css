@@ -144,6 +144,14 @@ input[type="range"] {
   width: 100%; accent-color: var(--acc);
   height: 28px;
 }
+
+/* ---------- tariff selector (analysis card) ---------- */
+.tariff-row { display: grid; gap: 4px; margin-bottom: 12px; }
+.tariff-row .lbl { margin: 0; }
+.tariff-row select { max-width: 100%; }
+.tariff-row .caption { margin-top: 0; font-size: .72rem; }
+#set-prog-tiers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+#set-prog-tiers > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .range-val { font-size: .9rem; font-weight: 700; color: var(--acc); margin-top: 2px; }
 
 .seg { display: flex; gap: 8px; }

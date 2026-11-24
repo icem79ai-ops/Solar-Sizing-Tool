@@ -38,6 +38,69 @@
         monthOverride: null
     };
 
+    // ------------------------------------------------------------ rate presets
+    // อัตราอ้างอิงจาก modules/tariff.py (มติ กกพ. 5 ส.ค. 2569)
+    // mode: ค่าที่ engine ใช้จริง ('tou' | 'progressive' | 'flat')
+    var TARIFF_PRESETS = {
+        tou: {
+            kind: 'tou', mode: 'tou',
+            label: 'TOU (On/Off-Peak)',
+            detail: 'On 5.7982 / Off 2.6369 · ค่าบริการ 87.44',
+            onPeakRate: 5.7982, offPeakRate: 2.6369, serviceFee: 87.44
+        },
+        prog5: {
+            kind: 'progressive', mode: 'progressive',
+            label: 'อัตราก้าวหน้า 5 ขั้น (1.1.1)',
+            detail: '2.3488 → 2.9882 → 3.0000 → 4.1584 → 4.3583 · ค่าบริการ 8.19',
+            progTiers: [[15, 2.3488], [25, 2.9882], [200, 3.0000], [400, 4.1584], [null, 4.3583]],
+            progServiceFee: 8.19
+        },
+        prog3: {
+            kind: 'progressive', mode: 'progressive',
+            label: 'อัตราก้าวหน้า 3 ขั้น (1.1.2)',
+            detail: '3.0000 → 4.1584 → 4.3583 · ค่าบริการ 24.62',
+            progTiers: [[200, 3.0000], [400, 4.1584], [null, 4.3583]],
+            progServiceFee: 24.62
+        },
+        flat: {
+            kind: 'flat', mode: 'flat',
+            label: 'อัตราคงที่ (Flat)',
+            detail: '4.18 บาท/kWh · ค่าบริการ 87.44',
+            flatRate: 4.18, serviceFee: 87.44
+        }
+    };
+
+    var PRESET_ORDER = ['tou', 'prog5', 'prog3', 'flat'];
+
+    // สร้าง tariff จาก preset โดยคงค่าอื่น (Ft, VAT, ช่วงเวลา On-Peak) ไว้
+    function tariffFromPreset(preset, base) {
+        var p = TARIFF_PRESETS[preset];
+        if (!p) return null;
+        var t = JSON.parse(JSON.stringify(base || DEFAULT_TARIFF));
+        t.mode = p.mode;
+        if (p.onPeakRate !== undefined) t.onPeakRate = p.onPeakRate;
+        if (p.offPeakRate !== undefined) t.offPeakRate = p.offPeakRate;
+        if (p.flatRate !== undefined) t.flatRate = p.flatRate;
+        if (p.serviceFee !== undefined) t.serviceFee = p.serviceFee;
+        if (p.progTiers) t.progTiers = p.progTiers.map(function (r) { return [r[0], r[1]]; });
+        if (p.progServiceFee !== undefined) t.progServiceFee = p.progServiceFee;
+        t.preset = preset;
+        return t;
+    }
+
+    // เดาชนิดอัตราจากช่อง "Tariff: x.x.x" ในไฟล์ PEA
+    function presetFromTariffCode(code) {
+        if (!code) return null;
+        var c = String(code).toUpperCase();
+        if (/TOU/.test(c)) return 'tou';
+        if (/1\.1\.2/.test(c)) return 'prog3';
+        if (/1\.1\.1/.test(c)) return 'prog5';
+        if (/^1\b|^1\./.test(c)) return 'prog5';
+        if (/^[345]\b|^[345]\./.test(c)) return 'tou';
+        return null;
+    }
+
+
     var N_INTERVALS = 96;
     var DT_HOURS = 0.25;
 
@@ -104,12 +167,36 @@
         };
     }
 
+    // อัตราก้าวหน้าเป็นขั้นรายเดือน: ถ้าคิดบนหน่วยของช่วงข้อมูล (เช่น 10 วัน)
+    // ต้องขยายเป็นหน่วย/เดือนก่อนคิดขั้น แล้วเทียบกลับมาเป็นช่วงเดิม
+    function billFromKwhPeriod(totalKwh, nDays, tariff) {
+        var bill = billFromKwh(totalKwh, 0, tariff);
+        if (tariff.mode !== 'progressive' || !(nDays > 0) || nDays === 30) return bill;
+        var up = 30 / nDays;
+        var monthly = billFromKwh(totalKwh * up, 0, tariff);
+        var out = scaleBill(monthly, 1 / up);
+        out.totalKwh = totalKwh;
+        out.monthlyTotalKwh = monthly.totalKwh;
+        out.monthlyGrandTotal = monthly.grandTotal;
+        out.tierScaled = true;
+        return out;
+    }
+    function scaleBill(bill, f) {
+        return {
+            onPeakKwh: bill.onPeakKwh, offPeakKwh: bill.offPeakKwh, totalKwh: bill.totalKwh,
+            energyCharge: bill.energyCharge * f, ftCharge: bill.ftCharge * f,
+            serviceFee: bill.serviceFee * f, vat: bill.vat * f,
+            subtotal: bill.subtotal * f, grandTotal: bill.grandTotal * f
+        };
+    }
+
     // bill from per-interval kW + minute-of-day arrays
-    function billForSeries(powerKw, minutes, tariff) {
+    // nDays (ถ้าส่งมา) ใช้ปรับขั้นอัตราก้าวหน้าให้เป็นรายเดือน
+    function billForSeries(powerKw, minutes, tariff, nDays) {
         if (tariff.mode === 'progressive' || tariff.mode === 'flat') {
             var total = 0;
             for (var i = 0; i < powerKw.length; i++) total += powerKw[i];
-            return billFromKwh(total * DT_HOURS, 0, tariff);
+            return billFromKwhPeriod(total * DT_HOURS, nDays, tariff);
         }
         var on = 0, off = 0;
         for (var j = 0; j < powerKw.length; j++) {
@@ -255,7 +342,7 @@
 
         var l = tileProfile(repDay, monthDays);
         var loadSeries = l.series, minutes = l.minutes;
-        var billBefore = billForSeries(loadSeries, minutes, tariff);
+        var billBefore = billForSeries(loadSeries, minutes, tariff, monthDays);
 
         var rows = [];
         var anyHybrid = mode === 'hybrid';
@@ -288,7 +375,7 @@
             }
             gridSeries = maxZeroArr(gridSeries);
 
-            var billAfter = billForSeries(gridSeries, minutes, tariff);
+            var billAfter = billForSeries(gridSeries, minutes, tariff, monthDays);
             var genKwh = sumArr(genSeries) * DT_HOURS;
             var selfUsedKwh = sumArr(selfUsedSeries) * DT_HOURS;
             var exportKwh = sumArr(exportSeries) * DT_HOURS;
@@ -398,8 +485,8 @@
             soc = new Float64Array(loadSeries.length);
         }
 
-        var billBefore = billForSeries(loadSeries, minutes, tariff);
-        var billAfter = billForSeries(grid, minutes, tariff);
+        var billBefore = billForSeries(loadSeries, minutes, tariff, monthDays);
+        var billAfter = billForSeries(grid, minutes, tariff, monthDays);
         var savings = billBefore.grandTotal - billAfter.grandTotal;
 
         var genKwh = sumArr(genSeries) * DT_HOURS;
@@ -803,7 +890,9 @@
     // ---------------------------------------------------------------- summary
     // Analysis bill like the Python app: AMR rows use the file's on/off flags;
     // generic rows use the tariff window split.
-    function analyzeData(data, tariff) {
+    // nDays (ถ้าส่งมา) ใช้ปรับอัตราก้าวหน้า: ขั้นอัตราคิดบนหน่วยต่อเดือน
+    // เพราะบิลจริงของการไฟฟ้าเป็นรายเดือน ไฟล์ 10 วันต้องขยายก่อนคิดขั้น
+    function analyzeData(data, tariff, nDays) {
         var onKwh = 0, offKwh = 0;
         var rows = data.rows;
         for (var i = 0; i < rows.length; i++) {
@@ -815,7 +904,14 @@
             if (isOn) onKwh += r.kw; else offKwh += r.kw;
         }
         onKwh *= DT_HOURS; offKwh *= DT_HOURS;
-        return { bill: billFromKwh(onKwh, offKwh, tariff), onPeakKwh: onKwh, offPeakKwh: offKwh };
+
+        var bill;
+        if (tariff.mode === 'progressive') {
+            bill = billFromKwhPeriod(onKwh + offKwh, nDays, tariff);
+        } else {
+            bill = billFromKwh(onKwh, offKwh, tariff);
+        }
+        return { bill: bill, onPeakKwh: onKwh, offPeakKwh: offKwh };
     }
 
     function summarize(rows, meta, isPea, label) {
@@ -891,8 +987,10 @@
     return {
         N_INTERVALS: N_INTERVALS, DT_HOURS: DT_HOURS,
         DEFAULT_SETTINGS: DEFAULT_SETTINGS,
+        TARIFF_PRESETS: TARIFF_PRESETS, PRESET_ORDER: PRESET_ORDER,
+        tariffFromPreset: tariffFromPreset, presetFromTariffCode: presetFromTariffCode,
         buildDailyBell: buildDailyBell,
-        billFromKwh: billFromKwh, billForSeries: billForSeries,
+        billFromKwh: billFromKwh, billFromKwhPeriod: billFromKwhPeriod, billForSeries: billForSeries,
         progressiveCharge: progressiveCharge,
         simulateBattery: simulateBattery,
         computeSizing: computeSizing, simulateScenario: simulateScenario,

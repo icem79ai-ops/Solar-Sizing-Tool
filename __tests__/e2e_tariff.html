@@ -78,6 +78,11 @@ window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e
   <section id="tab-analysis" class="pane">
     <div class="card">
       <h2>๐งพ เธเนเธฒเนเธเน€เธ”เธดเธก (เนเธกเนเธกเธต Solar)</h2>
+      <div class="tariff-row">
+        <label class="lbl" for="ana-tariff">คิดค่าไฟด้วยอัตรา</label>
+        <select id="ana-tariff"></select>
+        <p class="caption" id="ana-tariff-detail"></p>
+      </div>
       <div class="grid3" id="bill-metrics"></div>
       <p class="caption" id="bill-caption"></p>
       <div class="bill-detail" id="bill-detail"></div>
@@ -202,34 +207,31 @@ window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e
       <button class="icon-btn" id="btn-close-settings">โ•</button>
     </div>
     <div class="modal-body">
-      <label class="lbl">เธญเธฑเธ•เธฃเธฒเธเนเธฒเนเธ</label>
-      <select id="set-tariff-mode">
-        <option value="auto">เธญเธฑเธ•เนเธเธกเธฑเธ•เธด (เธ•เธฒเธกเนเธเธฅเน โ€” เธเนเธฒเน€เธฃเธดเนเธกเธ•เนเธ TOU)</option>
+      <label class="lbl">แบบอัตราค่าไฟ (การไฟฟ้า)</label>
+      <select id="set-tariff-preset">
+        <option value="auto">ตรวจจากไฟล์ (อัตโนมัติ)</option>
         <option value="tou">TOU (On/Off-Peak)</option>
-        <option value="progressive">เธญเธฑเธ•เธฃเธฒเธเนเธฒเธงเธซเธเนเธฒ (เธเนเธฒเธเธญเธขเธนเนเธญเธฒเธจเธฑเธข)</option>
-        <option value="flat">Flat</option>
+        <option value="prog5">อัตราก้าวหน้า 5 ขั้น (1.1.1)</option>
+        <option value="prog3">อัตราก้าวหน้า 3 ขั้น (1.1.2)</option>
+        <option value="flat">อัตราคงที่ (Flat)</option>
+        <option value="custom">กำหนดเอง (แก้ตัวเลขเอง)</option>
       </select>
+      <p class="caption" id="set-preset-detail"></p>
       <div id="set-tou-rate">
-        <label class="lbl">เธเนเธฒเนเธ On-Peak (เธเธฒเธ—/kWh)</label>
+        <label class="lbl">ค่าไฟ On-Peak (บาท/kWh)</label>
         <input type="number" step="0.0001" id="set-on-rate">
-        <label class="lbl">เธเนเธฒเนเธ Off-Peak (เธเธฒเธ—/kWh)</label>
+        <label class="lbl">ค่าไฟ Off-Peak (บาท/kWh)</label>
         <input type="number" step="0.0001" id="set-off-rate">
       </div>
-      <label class="lbl">เธเนเธฒเนเธ Flat (เธเธฒเธ—/kWh)</label>
-      <input type="number" step="0.0001" id="set-flat-rate">
+      <div id="set-flat-wrap">
+        <label class="lbl">ค่าไฟ Flat (บาท/kWh)</label>
+        <input type="number" step="0.0001" id="set-flat-rate">
+      </div>
       <div id="set-prog-rate">
-        <label class="lbl">เธญเธฑเธ•เธฃเธฒเธเนเธฒเธงเธซเธเนเธฒ (เธเนเธฒเธเธญเธขเธนเนเธญเธฒเธจเธฑเธข โ€” เธเธฒเธ—/kWh)</label>
+        <label class="lbl">อัตราก้าวหน้า (บาท/kWh)</label>
+        <div id="set-prog-tiers"></div>
         <div class="grid2">
-          <div><label class="lbl sm">เธเธฑเนเธ 1 (0โ€“15 kWh)</label><input type="number" step="0.0001" id="set-prog-1"></div>
-          <div><label class="lbl sm">เธเธฑเนเธ 2 (15โ€“25 kWh)</label><input type="number" step="0.0001" id="set-prog-2"></div>
-        </div>
-        <div class="grid2">
-          <div><label class="lbl sm">เธเธฑเนเธ 3 (25โ€“200 kWh)</label><input type="number" step="0.0001" id="set-prog-3"></div>
-          <div><label class="lbl sm">เธเธฑเนเธ 4 (200โ€“400 kWh)</label><input type="number" step="0.0001" id="set-prog-4"></div>
-        </div>
-        <div class="grid2">
-          <div><label class="lbl sm">เธเธฑเนเธ 5 (เธกเธฒเธเธเธงเนเธฒ 400 kWh)</label><input type="number" step="0.0001" id="set-prog-5"></div>
-          <div><label class="lbl sm">เธเนเธฒเธเธฃเธดเธเธฒเธฃ/เน€เธ”เธทเธญเธ</label><input type="number" step="0.01" id="set-prog-service"></div>
+          <div><label class="lbl sm">ค่าบริการ/เดือน (อัตราก้าวหน้า)</label><input type="number" step="0.01" id="set-prog-service"></div>
         </div>
       </div>
       <div class="grid2">
@@ -257,10 +259,10 @@ window.addEventListener('error',function(e){window.__cap.push('ERR:'+(e.error&&e
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="../lib/chart.umd.min.js?v=3"></script>
-<script src="../lib/xlsx.full.min.js?v=3"></script>
-<script src="../core.js?v=3"></script>
-<script src="../app.js?v=3"></script>
+<script src="../lib/chart.umd.min.js?v=4"></script>
+<script src="../lib/xlsx.full.min.js?v=4"></script>
+<script src="../core.js?v=4"></script>
+<script src="../app.js?v=4"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];
@@ -290,21 +292,22 @@ setTimeout(function(){
   setTimeout(function(){
     __log('bill-before='+__txt('#bill-metrics').slice(0,45));
     document.getElementById('btn-settings').click();
-    __log('prog1-fill='+document.getElementById('set-prog-1').value);
-    __log('prog5-fill='+document.getElementById('set-prog-5').value);
+    __log('tierInputs='+document.querySelectorAll('#set-prog-tiers input').length);
     __log('progService-fill='+document.getElementById('set-prog-service').value);
-    var sel=document.getElementById('set-tariff-mode');
+    var sel=document.getElementById('set-tariff-preset');
     sel.value='flat';
     sel.dispatchEvent(new Event('change',{bubbles:true}));
-    __log('bill-flat-live='+__txt('#bill-cap').replace('เธ','')+__txt('#bill-metrics').slice(0,60));
-    sel.value='progressive';
+    __log('bill-flat-live='+__txt('#bill-metrics').slice(0,60));
+    sel.value='prog3';
     sel.dispatchEvent(new Event('change',{bubbles:true}));
-    __log('bill-prog-live='+__txt('#bill-metrics').slice(0,75));
+    __log('bill-prog3-live='+__txt('#bill-metrics').slice(0,75));
     __log('caption-live='+__txt('#bill-caption'));
-    document.getElementById('set-prog-1').value='1.0';
+    __log('tiersAfterProg3='+document.querySelectorAll('#set-prog-tiers input').length);
+    var ti=document.querySelectorAll('#set-prog-tiers input');
+    ti[ti.length-1].value='4.50';
     document.getElementById('btn-save-settings').click();
     setTimeout(function(){
-      __log('bill-prog-tier1=1.0='+__txt('#bill-metrics').slice(0,75));
+      __log('bill-prog3-topTier4.5='+__txt('#bill-metrics').slice(0,75));
       __log('detail='+__txt('#bill-detail').slice(0,200));
       __log('progBlockVisible='+document.getElementById('set-prog-rate').style.display);
       __log('caps=['+window.__cap.join(' | ')+']');

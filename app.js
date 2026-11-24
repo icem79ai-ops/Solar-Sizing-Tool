@@ -10,7 +10,8 @@
     var state = {
         data: null,
         settings: null,
-        tariffMode: 'auto',
+        tariffPreset: 'auto',
+        customKind: null,
         sizingMode: 'ongrid',
         savMode: 'ongrid',
         sizingBattery: 10,
@@ -39,10 +40,27 @@
     function thaiMonth(m) {
         return ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'][(m - 1) % 12];
     }
-    function tariffLabel(mode) {
-        if (mode === 'progressive') return 'อัตราก้าวหน้า';
-        if (mode === 'flat') return 'Flat';
-        return 'TOU (On/Off-Peak)';
+    // ชื่ออัตราที่ใช้จริงของ tariff หนึ่งชุด (preset ที่เลือก หรือ 'กำหนดเอง')
+    function tariffText(t) {
+        var p = Core.TARIFF_PRESETS[t.preset];
+        if (p) return p.label;
+        if (t.mode === 'progressive') return 'อัตราก้าวหน้า (กำหนดเอง)';
+        if (t.mode === 'flat') return 'Flat (กำหนดเอง)';
+        return 'TOU (กำหนดเอง)';
+    }
+    function tariffDetail(t) {
+        if (t.mode === 'progressive') {
+            var tiers = (t.progTiers || []).map(function (r) { return r[1].toFixed(4); }).join(' → ');
+            return tiers + ' · ค่าบริการ ' + t.progServiceFee;
+        }
+        if (t.mode === 'flat') return t.flatRate.toFixed(4) + ' บาท/kWh · ค่าบริการ ' + t.serviceFee;
+        return 'On ' + t.onPeakRate.toFixed(4) + ' / Off ' + t.offPeakRate.toFixed(4) + ' · ค่าบริการ ' + t.serviceFee;
+    }
+    // preset ที่จะใช้จริง: ที่ผู้ใช้เลือก หรือเดาจากช่อง Tariff ในไฟล์
+    function resolvePreset() {
+        if (state.tariffPreset && state.tariffPreset !== 'auto') return state.tariffPreset;
+        var code = state.data && state.data.metadata ? state.data.metadata.tariff : null;
+        return Core.presetFromTariffCode(code) || 'tou';
     }
 
     // -------------------------------------------------------------- settings
@@ -57,7 +75,14 @@
                 if (o.battery) Object.assign(s.battery, o.battery);
                 if (o.location) { s.location = s.location || {}; Object.assign(s.location, o.location); }
                 s.monthOverride = o.monthOverride === undefined ? null : o.monthOverride;
-                state.tariffMode = o.tariffMode || 'auto';
+                if (o.tariffPreset) state.tariffPreset = o.tariffPreset;
+                else {
+                    // ค่าเก่าเก็บเป็น tariffMode — แปลงให้ตรง (progressive เดิม = เลขที่ผู้ใช้แก้เอง)
+                    var legacy = o.tariffMode;
+                    state.tariffPreset = (legacy === 'tou' || legacy === 'flat') ? legacy
+                        : (legacy === 'progressive' ? 'custom' : 'auto');
+                }
+                state.customKind = s.tariff.mode || 'tou';
                 return s;
             }
         } catch (e) { /* ignore */ }
@@ -70,13 +95,18 @@
             battery: state.settings.battery,
             location: state.settings.location,
             monthOverride: state.settings.monthOverride,
-            tariffMode: state.tariffMode
+            tariffPreset: state.tariffPreset
         }));
     }
 
     function effectiveSettings() {
         var s = JSON.parse(JSON.stringify(state.settings));
-        s.tariff.mode = state.tariffMode === 'auto' ? 'tou' : state.tariffMode;
+        var preset = resolvePreset();
+        if (Core.TARIFF_PRESETS[preset]) {
+            s.tariff = Core.tariffFromPreset(preset, s.tariff);
+        } else if (!s.tariff.mode) {
+            s.tariff.mode = 'progressive';
+        }
         return s;
     }
     function selectedMonth() {
@@ -171,26 +201,56 @@
     }
 
     // --------------------------------------------------------------- analysis
+    function renderTariffSelect(S) {
+        var sel = $('ana-tariff');
+        if (!sel) return;
+        var html = ['<option value="auto">ตรวจจากไฟล์ (อัตโนมัติ)</option>'];
+        Core.PRESET_ORDER.forEach(function (k) {
+            html.push('<option value="' + k + '">' + Core.TARIFF_PRESETS[k].label + '</option>');
+        });
+        html.push('<option value="custom">กำหนดเอง (แก้ตัวเลขในหน้าตั้งค่า)</option>');
+        sel.innerHTML = html.join('');
+        sel.value = state.tariffPreset;
+
+        var code = state.data && state.data.metadata ? state.data.metadata.tariff : null;
+        var txt;
+        if (state.tariffPreset === 'auto') {
+            txt = 'ใช้จริง: ' + tariffText(S.tariff) +
+                (code ? ' — ตรวจจากไฟล์: Tariff ' + code
+                      : ' — ไฟล์ไม่มีช่อง Tariff จึงใช้ TOU เป็นค่าเริ่มต้น');
+        } else if (state.tariffPreset === 'custom') {
+            txt = 'ใช้ค่าที่แก้เอง: ' + tariffDetail(S.tariff);
+        } else {
+            txt = Core.TARIFF_PRESETS[state.tariffPreset].detail;
+        }
+        $('ana-tariff-detail').textContent = txt;
+    }
+
     function renderAnalysis() {
         if (!state.data) return;
         var d = state.data;
         var S = effectiveSettings();
         var basis = basisDesc(d);
-        var ana = Core.analyzeData(d, S.tariff);
+        var ana = Core.analyzeData(d, S.tariff, d.nDays);
         var bill = ana.bill.grandTotal;
-        var monthlyBill = d.nDays <= 1 ? bill * 30 : bill * 30 / d.nDays;
+        var monthlyBill = ana.bill.monthlyGrandTotal !== undefined ? ana.bill.monthlyGrandTotal
+            : (d.nDays <= 1 ? bill * 30 : bill * 30 / d.nDays);
+
+        renderTariffSelect(S);
 
         var prop = Core.pshForMonth(selectedMonth(), S);
         $('bill-metrics').innerHTML =
-            metric('ค่าไฟ (ระยะ ' + basis.period + ' วัน)', money(bill), tariffLabel(S.tariff.mode)) +
+            metric('ค่าไฟ (ระยะ ' + basis.period + ' วัน)', money(bill), tariffText(S.tariff)) +
             metric('ค่าไฟ/เดือน (โดยประมาณ)', money(monthlyBill), basis.perDay ? '×30' : '×30/' + d.nDays) +
             metric('พลังงาน/เดือน', fmtNum(d.totalKwh * 30 / Math.max(1, d.nDays), 0) + ' kWh', 'PSH เดือนนี้ ≈ ' + prop);
-        $('bill-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffLabel(S.tariff.mode) + ' — ' + basis.note;
+        $('bill-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note +
+            (S.tariff.mode === 'progressive' ? ' | ขั้นอัตราคิดบนหน่วยต่อเดือน แล้วเทียบกลับเป็นระยะไฟล์' : '');
 
         var mode = S.tariff.mode;
         var head = '';
         if (mode === 'progressive' || mode === 'flat') {
-            head = '<div>พลังงานรวม <b>' + fmtNum(ana.bill.totalKwh, 1) + ' kWh</b></div>' +
+            head = '<div>พลังงานรวม <b>' + fmtNum(ana.bill.totalKwh, 1) + ' kWh</b>' +
+                (ana.bill.monthlyTotalKwh ? ' — ต่อเดือน ≈ ' + fmtNum(ana.bill.monthlyTotalKwh, 0) + ' kWh' : '') + '</div>' +
                 (mode === 'progressive'
                     ? '<div>ค่าไฟพลังงาน (อัตราก้าวหน้า) <b>' + money(ana.bill.energyCharge) + '</b></div>'
                     : '<div>ค่าไฟพลังงาน (Flat) <b>' + money(ana.bill.energyCharge) + '</b></div>');
@@ -268,7 +328,7 @@
         var res = Core.computeSizing(d, opts);
         var period = res.periodDays;
 
-        $('basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffLabel(S.tariff.mode) + ' — ' + basis.note +
+        $('basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note +
             ' | ผลิตต่อวันต่อ kWp = ' + (res.psh * (1 - res.systemLosses)).toFixed(2) + ' kWh';
 
         renderRec(res, S);
@@ -427,7 +487,7 @@
         $('waste-caption').textContent = '☀️ โซลาร์ผลิต ' + fmtNum(scen.genKwh, 0) + ' kWh · ใช้เอง ' + fmtNum(scen.selfUsedKwh, 0) +
             ' kWh · เหลือทิ้ง/ส่งGrid ' + fmtNum(scen.wasteKwh, 0) + ' kWh (ย้ำ: โมเดลไม่คิดรายได้จากการขายไฟ) · คืนทุน ≈ ' + years(paybackOf(scen, S));
 
-        $('save-basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffLabel(S.tariff.mode) + ' — ' + basis.note;
+        $('save-basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note;
 
         renderDailyChart(scen, basis);
 
@@ -585,7 +645,7 @@
         var res = Core.computeSizing(state.data, { settings: S, mode: state.sizingMode });
         var aoa = [
             ['☀️ Solar Sizing Tool — ผลการคำนวณ'],
-            ['อัตรา', tariffLabel(S.tariff.mode), 'โหมด', state.sizingMode === 'hybrid' ? 'Hybrid' : 'On-Grid'],
+            ['อัตรา', tariffText(S.tariff), 'โหมด', state.sizingMode === 'hybrid' ? 'Hybrid' : 'On-Grid'],
             ['ขนาด (kWp)', 'ผลิต (kWh)', 'ใช้เอง (kWh)', 'เหลือทิ้ง (kWh)', 'ประหยัด/เดือน (฿)', 'ลด (%)', 'คืนทุน (เดือน)', 'Self-CR (%)', 'ลงทุน (฿)']
         ];
         res.rows.forEach(function (r) {
@@ -630,9 +690,36 @@
     }
 
     // ---------------------------------------------------------------- settings modal
+    function renderProgTiers(tiers) {
+        var box = $('set-prog-tiers');
+        var rows = tiers && tiers.length ? tiers : Core.TARIFF_PRESETS.prog5.progTiers;
+        var html = '';
+        var lo = 0;
+        for (var i = 0; i < rows.length; i++) {
+            var hi = rows[i][0];
+            var label = lo === 0
+                ? 'ขั้น ' + (i + 1) + ' (0–' + hi + ' kWh)'
+                : (hi === null ? 'ขั้น ' + (i + 1) + ' (มากกว่า ' + lo + ' kWh)'
+                    : 'ขั้น ' + (i + 1) + ' (' + lo + '–' + hi + ' kWh)');
+            html += '<div><label class="lbl sm">' + label + '</label>' +
+                '<input type="number" step="0.0001" data-tier="' + i + '" data-bound="' + (hi === null ? '' : hi) + '" value="' + rows[i][1] + '"></div>';
+            lo = hi;
+        }
+        box.innerHTML = html;
+    }
+    function readProgTiers() {
+        var out = [];
+        var inputs = $('set-prog-tiers').querySelectorAll('input[data-tier]');
+        for (var i = 0; i < inputs.length; i++) {
+            var v = parseFloat(inputs[i].value);
+            var b = inputs[i].getAttribute('data-bound');
+            out.push([b === '' || b === null ? null : parseFloat(b), isNaN(v) ? 0 : v]);
+        }
+        return out;
+    }
     function openSettings() {
         var s = state.settings, t = s.tariff;
-        $('set-tariff-mode').value = state.tariffMode;
+        $('set-tariff-preset').value = state.tariffPreset;
         $('set-on-rate').value = t.onPeakRate;
         $('set-off-rate').value = t.offPeakRate;
         $('set-flat-rate').value = t.flatRate;
@@ -642,46 +729,90 @@
         $('set-solar-price').value = s.solar.pricePerKwp;
         $('set-loss').value = s.solar.systemLosses * 100;
         $('set-batt-price').value = s.battery.pricePerKwh;
-        var tiers = t.progTiers || [];
-        var ids = ['set-prog-1', 'set-prog-2', 'set-prog-3', 'set-prog-4', 'set-prog-5'];
-        for (var i = 0; i < ids.length; i++) {
-            $(ids[i]).value = tiers[i] ? tiers[i][1] : '';
-        }
+        renderProgTiers(t.progTiers);
         $('set-prog-service').value = t.progServiceFee;
-        showTariffFields(state.tariffMode);
+        if (Core.TARIFF_PRESETS[state.tariffPreset]) applyPresetInputs(state.tariffPreset);
+        showTariffFields(state.tariffPreset);
         $('modal').hidden = false;
     }
-    function showTariffFields(mode) {
-        var isTou = mode === 'auto' || mode === 'tou';
-        $('set-tou-rate').style.display = isTou ? '' : 'none';
-        $('set-prog-rate').style.display = mode === 'progressive' ? '' : 'none';
-        $('set-flat-rate').parentNode.querySelector('label').style.display = mode === 'flat' ? '' : 'none';
-        var flatInput = $('set-flat-rate');
-        flatInput.style.display = mode === 'flat' ? '' : 'none';
+    function presetKind(preset) {
+        if (preset === 'auto') {
+            var r = resolvePreset();
+            return Core.TARIFF_PRESETS[r] ? Core.TARIFF_PRESETS[r].mode : 'tou';
+        }
+        if (preset === 'custom') return state.customKind || state.settings.tariff.mode || 'progressive';
+        var p = Core.TARIFF_PRESETS[preset];
+        return p ? p.mode : 'tou';
+    }
+    // เติมช่องตัวเลขในหน้าตั้งค่าด้วยค่ามาตรฐานของ preset
+    function applyPresetInputs(preset) {
+        var p = Core.TARIFF_PRESETS[preset];
+        if (!p) return;
+        if (p.onPeakRate !== undefined) $('set-on-rate').value = p.onPeakRate;
+        if (p.offPeakRate !== undefined) $('set-off-rate').value = p.offPeakRate;
+        if (p.flatRate !== undefined) $('set-flat-rate').value = p.flatRate;
+        if (p.serviceFee !== undefined) $('set-service').value = p.serviceFee;
+        if (p.progTiers) {
+            renderProgTiers(p.progTiers);
+            $('set-prog-service').value = p.progServiceFee;
+        }
+        state.customKind = p.mode;
+    }
+    function showTariffFields(preset) {
+        var kind = presetKind(preset);
+        $('set-tou-rate').style.display = kind === 'tou' ? '' : 'none';
+        $('set-prog-rate').style.display = kind === 'progressive' ? '' : 'none';
+        $('set-flat-wrap').style.display = kind === 'flat' ? '' : 'none';
+        var p = Core.TARIFF_PRESETS[preset];
+        $('set-preset-detail').textContent = p ? p.detail
+            : (preset === 'auto' ? 'จะใช้ ' + Core.TARIFF_PRESETS[resolvePreset()].label + ' ตามช่อง Tariff ในไฟล์'
+                : 'แก้ตัวเลขเองได้ทุกช่อง');
     }
     function saveSettingsUi() {
         var s = state.settings;
-        state.tariffMode = $('set-tariff-mode').value;
+        var preset = $('set-tariff-preset').value;
+        var kind = presetKind(preset);
         s.tariff.onPeakRate = parseFloat($('set-on-rate').value) || 0;
         s.tariff.offPeakRate = parseFloat($('set-off-rate').value) || 0;
         s.tariff.flatRate = parseFloat($('set-flat-rate').value) || 0;
         s.tariff.serviceFee = parseFloat($('set-service').value) || 0;
         s.tariff.ftRate = parseFloat($('set-ft').value) || 0;
         s.tariff.vatRate = (parseFloat($('set-vat').value) || 0) / 100;
-        var tiers = [[15, parseFloat($('set-prog-1').value) || 0],
-            [25, parseFloat($('set-prog-2').value) || 0],
-            [200, parseFloat($('set-prog-3').value) || 0],
-            [400, parseFloat($('set-prog-4').value) || 0],
-            [null, parseFloat($('set-prog-5').value) || 0]];
-        s.tariff.progTiers = tiers;
+        var tiers = readProgTiers();
+        if (tiers.length) s.tariff.progTiers = tiers;
         s.tariff.progServiceFee = parseFloat($('set-prog-service').value) || 0;
+        s.tariff.mode = kind;
+        s.tariff.preset = preset;
+
+        // preset ที่มีเลขมาตรฐาน: บันทึกเป็น preset (เลขจะถูกทับด้วยค่ามาตรฐาน)
+        // ถ้าผู้ใช้แก้เลขเอง ให้เก็บเป็น 'custom' เพื่อไม่ให้ค่าที่แก้หาย
+        if (preset !== 'auto' && preset !== 'custom' && !sameAsPreset(preset, s.tariff)) {
+            state.tariffPreset = 'custom';
+        } else {
+            state.tariffPreset = preset;
+        }
+        s.tariff.preset = state.tariffPreset;
+
         s.solar.pricePerKwp = parseFloat($('set-solar-price').value) || 40000;
         s.solar.systemLosses = (parseFloat($('set-loss').value) || 25) / 100;
         s.battery.pricePerKwh = parseFloat($('set-batt-price').value) || 9000;
         saveSettings();
         $('modal').hidden = true;
         if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
-        toast('บันทึกการตั้งค่าแล้ว');
+        toast('บันทึกการตั้งค่าแล้ว (' + tariffText(effectiveSettings().tariff) + ')');
+    }
+    function sameAsPreset(preset, t) {
+        var ref = Core.tariffFromPreset(preset, t);
+        if (!ref) return false;
+        if (ref.mode !== t.mode) return false;
+        if (ref.mode === 'tou') return Math.abs(ref.onPeakRate - t.onPeakRate) < 1e-9 && Math.abs(ref.offPeakRate - t.offPeakRate) < 1e-9;
+        if (ref.mode === 'flat') return Math.abs(ref.flatRate - t.flatRate) < 1e-9;
+        if (!ref.progTiers || !t.progTiers || ref.progTiers.length !== t.progTiers.length) return false;
+        for (var i = 0; i < ref.progTiers.length; i++) {
+            if (ref.progTiers[i][0] !== t.progTiers[i][0]) return false;
+            if (Math.abs(ref.progTiers[i][1] - t.progTiers[i][1]) > 1e-9) return false;
+        }
+        return Math.abs(ref.progServiceFee - t.progServiceFee) < 1e-9;
     }
     function backup() {
         download('solar-settings-' + new Date().toISOString().slice(0, 10) + '.json',
@@ -703,7 +834,12 @@
                 if (o.battery) Object.assign(s.battery, o.battery);
                 s.monthOverride = o.monthOverride === undefined ? null : o.monthOverride;
                 state.settings = s;
-                state.tariffMode = o.tariffMode || state.tariffMode;
+                if (o.tariffPreset) state.tariffPreset = o.tariffPreset;
+                else if (o.tariffMode) {
+                    state.tariffPreset = (o.tariffMode === 'tou' || o.tariffMode === 'flat') ? o.tariffMode
+                        : (o.tariffMode === 'progressive' ? 'custom' : 'auto');
+                }
+                state.customKind = s.tariff.mode || state.customKind;
                 saveSettings();
                 toast('กู้คืนข้อมูลเรียบร้อย (ผสานกับค่าเดิม ไม่ทับ)');
                 if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
@@ -772,8 +908,14 @@
 
         $('btn-settings').addEventListener('click', openSettings);
         $('btn-close-settings').addEventListener('click', function () { $('modal').hidden = true; });
-        $('set-tariff-mode').addEventListener('change', function () {
-            state.tariffMode = this.value;
+        $('ana-tariff').addEventListener('change', function () {
+            state.tariffPreset = this.value;
+            if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
+            saveSettings();
+        });
+        $('set-tariff-preset').addEventListener('change', function () {
+            state.tariffPreset = this.value;
+            applyPresetInputs(this.value);
             showTariffFields(this.value);
             if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
         });
