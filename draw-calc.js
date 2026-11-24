@@ -118,7 +118,35 @@
         };
     }
 
+    var THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+
+    // แปลงโปรไฟล์ที่วาด (96 ช่วง/วัน) ให้เป็นรูปแบบเดียวกับข้อมูลจากไฟล์มิเตอร์
+    // เพื่อส่งเข้าขั้นตอนคำนวณเดิมได้ทันที (rows: ts, minute, kw, onPeak)
+    function slotsToData(slots, opts) {
+        opts = opts || {};
+        var s = cleanSlots(slots);
+        var month = opts.month || 11, year = opts.year || 2026, nDays = opts.nDays || 30;
+        var rows = [], total = 0, peak = 0;
+        for (var d = 1; d <= nDays; d++) {
+            for (var i = 0; i < SLOTS; i++) {
+                var h = Math.floor(i / 4), mi = (i % 4) * 15;
+                rows.push({ ts: new Date(year, month - 1, d, h, mi), minute: i * 15, kw: s[i], onPeak: null });
+                total += s[i] * SLOT_HOURS;
+                if (s[i] > peak) peak = s[i];
+            }
+        }
+        return {
+            rows: rows, nDays: nDays, nIntervals: rows.length,
+            totalKwh: total, peakKw: peak, intervalMinutes: 15,
+            metadata: { month: month, month_th: THAI_MONTHS[month - 1], year: year + 543, label: 'โหลดที่วาดเอง' },
+            isPea: false, tariffHint: null,
+            label: opts.label || 'โหลดที่วาดเอง', monthForPsh: month
+        };
+    }
+
     return {
+        slotsToData: slotsToData, THAI_MONTHS: THAI_MONTHS,
         DEMAND_TARIFFS: DEMAND_TARIFFS, demandBill: demandBill,
         SLOTS: SLOTS, dailyKwh: dailyKwh, monthlyBill: monthlyBill,
         compareAll: compareAll, cleanSlots: cleanSlots, hourlyToSlots: hourlyToSlots

@@ -59,6 +59,21 @@ window.addEventListener('unhandledrejection', function (e) {
       <div id="load-error" class="error-box" hidden></div>
     </div>
 
+    <div class="card">
+      <h2>✏️ สร้างโหลดโปรไฟล์เอง</h2>
+      <p class="hint">ไม่มีไฟล์จากมิเตอร์? วาดโหลดรายวันเองทีละ 15 นาที แล้วกด <b>ใช้โปรไฟล์นี้คำนวณ</b> ระบบจะคำนวณขนาดโซลาร์และแบตเตอรี่ตามขั้นตอนเดิมทุกอย่าง (โปรไฟล์นี้ถือว่าทุกวันเหมือนกัน 30 วัน)</p>
+      <button type="button" id="btn-open-draw">เปิดตัววาดโหลด</button>
+      <div id="draw-area" hidden>
+        <div class="draw-row">
+          <label>เดือนที่ใช้หาค่าแดด (PSH)
+            <select id="draw-month"></select>
+          </label>
+          <button type="button" id="btn-use-draw">▶ ใช้โปรไฟล์นี้คำนวณ</button>
+        </div>
+        <div id="draw-pad"></div>
+      </div>
+    </div>
+
     <div id="file-info" hidden>
       <div class="card">
         <h2>📇 รายละเอียดไฟล์</h2>
@@ -259,6 +274,8 @@ window.addEventListener('unhandledrejection', function (e) {
 <script src="lib/chart.umd.min.js?v=4"></script>
 <script src="lib/xlsx.full.min.js?v=4"></script>
 <script src="core.js?v=4"></script>
+<script src="draw-calc.js?v=1"></script>
+<script src="draw-pad.js?v=1"></script>
 <script src="app.js?v=4"></script>
 <script>
 window.addEventListener('load', function () {

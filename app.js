@@ -852,6 +852,36 @@
     }
 
     // ---------------------------------------------------------------- wiring
+    // ---------------------------------------------------- โหลดที่วาดเอง
+    var drawPad = null;
+    var DRAW_MONTH_DEFAULT = 11;
+
+    function openDrawPad() {
+        var area = $('draw-area');
+        var willOpen = area.hidden;
+        area.hidden = !willOpen;
+        if (!willOpen || drawPad) return;
+        var sel = $('draw-month');
+        sel.innerHTML = DrawCalc.THAI_MONTHS.map(function (name, i) {
+            return '<option value="' + (i + 1) + '"' + (i + 1 === DRAW_MONTH_DEFAULT ? ' selected' : '') + '>' + name + '</option>';
+        }).join('');
+        drawPad = DrawPad.mount($('draw-pad'), {});
+    }
+
+    function useDrawnProfile() {
+        if (!drawPad) return;
+        var month = Number($('draw-month').value) || DRAW_MONTH_DEFAULT;
+        var data = DrawCalc.slotsToData(drawPad.getSlots(), { month: month, year: 2026, nDays: 30 });
+        if (!(data.totalKwh > 0)) { toast('ยังไม่มีโหลดในกราฟ — ลากวาดก่อน', true); return; }
+        state.data = data;
+        $('load-error').hidden = true;
+        $('file-info').hidden = false;
+        renderFileMeta();
+        renderFileSummary();
+        switchTab('analysis');
+        toast('ใช้โปรไฟล์ที่วาดเองแล้ว: ' + fmtNum(data.totalKwh, 1) + ' kWh/เดือน');
+    }
+
     function wire() {
         var tabs = document.querySelectorAll('.tab');
         tabs.forEach(function (b) { b.addEventListener('click', function () { switchTab(b.dataset.tab); }); });
@@ -885,6 +915,8 @@
             renderAnalysis();
         });
         $('btn-batt-recommend').addEventListener('click', runBattRecommend);
+        $('btn-open-draw').addEventListener('click', openDrawPad);
+        $('btn-use-draw').addEventListener('click', useDrawnProfile);
 
         document.querySelectorAll('#sav-mode .opt').forEach(function (b) {
             b.addEventListener('click', function () {
