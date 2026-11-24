@@ -145,7 +145,102 @@
         };
     }
 
+    // ================================================================
+    // ทะเบียนอัตราค่าไฟ กฟภ. ฉบับ กันยายน 2569 (ราคาไม่รวม VAT)
+    // group: residential = บ้านอยู่อาศัย (ไม่มีค่าดีมานด์), business = ประเภท 3 (มีดีมานด์)
+    // kind: progressive (ขั้นตามหน่วยรวมเดือน) · tou (On/Off ตามช่วง) · normal (อัตราเดียว+ดีมานด์)
+    // ================================================================
+    var TARIFFS = {
+        r111: { group: 'residential', kind: 'progressive', label: 'บ้าน 1.1.1 อัตราก้าวหน้า (ไม่เกิน 150 หน่วย)',
+            tiers: [[15, 2.3488], [25, 2.9882], [200, 3.0], [400, 4.1584], [null, 4.3583]], serviceFee: 8.19 },
+        r112: { group: 'residential', kind: 'progressive', label: 'บ้าน 1.1.2 อัตราก้าวหน้า (เกิน 150 หน่วย)',
+            tiers: [[200, 3.0], [400, 4.1584], [null, 4.3583]], serviceFee: 24.62 },
+        r121: { group: 'residential', kind: 'tou', label: 'บ้าน 1.2.1 TOU (แรงดัน 22–33 kV)',
+            peakRate: 5.1135, offRate: 2.6037, serviceFee: 312.24 },
+        r122: { group: 'residential', kind: 'tou', label: 'บ้าน 1.2.2 TOU (แรงดันต่ำกว่า 22 kV)',
+            peakRate: 5.7982, offRate: 2.6369, serviceFee: 24.62 },
+        d31:  { group: 'business', kind: 'normal', label: 'ประเภท 3.1.2 อัตราปกติ (22–33 kV)',
+            demandRate: 196.26, energyRate: 3.1471, serviceFee: 312.24 },
+        d31s: { group: 'business', kind: 'normal', label: 'ประเภท 3.1.3 อัตราปกติ (ต่ำกว่า 22 kV)',
+            demandRate: 221.50, energyRate: 3.1751, serviceFee: 312.24 },
+        d32:  { group: 'business', kind: 'tou', label: 'ประเภท 3.2.2 TOU (22–33 kV)',
+            demandRate: 132.93, peakRate: 4.1839, offRate: 2.6037, serviceFee: 312.24 },
+        d32s: { group: 'business', kind: 'tou', label: 'ประเภท 3.2.3 TOU (ต่ำกว่า 22 kV)',
+            demandRate: 210.00, peakRate: 4.3297, offRate: 2.6369, serviceFee: 312.24 }
+    };
+    var FT_RATE = 0.1623, VAT_RATE = 0.07;   // ค่า Ft และ VAT ของ กฟภ. (ปรับได้ที่ argument)
+
+    // คิดค่าไฟ 1 เดือนของโปรไฟล์ 96 ช่วง/วัน (30 วัน) แยกรายการ
+    // คืนค่า items = รายการที่ประกอบเป็นบิล (ไว้แสดงกราฟแท่งสัดส่วน)
+    function billBreakdown(slots, key, opts) {
+        var t = TARIFFS[key];
+        if (!t) throw new Error('ไม่รู้จักอัตรา: ' + key);
+        opts = opts || {};
+        var ft = opts.ftRate === undefined ? FT_RATE : opts.ftRate;
+        var vr = opts.vatRate === undefined ? VAT_RATE : opts.vatRate;
+        var s = cleanSlots(slots);
+        var d = dailyKwh(s);
+        var on = d.onKwh * DAYS_PER_MONTH, off = d.offKwh * DAYS_PER_MONTH, total = on + off;
+        var items = [], demandKw = 0;
+
+        if (t.kind === 'progressive') {
+            items.push({ key: 'energy', label: 'ค่าพลังงาน (ขั้นอัตราก้าวหน้า)', amount: Core.progressiveCharge(total, t.tiers) });
+        } else if (t.kind === 'tou') {
+            if (t.demandRate !== undefined) {
+                demandKw = maxIn(s, true);
+                items.push({ key: 'demand', label: 'ค่าดีมานด์ (Peak ' + demandKw.toFixed(1) + ' kW)', amount: demandKw * t.demandRate });
+            }
+            items.push({ key: 'energy', label: 'ค่าพลังงาน On-Peak ' + on.toFixed(0) + ' + Off-Peak ' + off.toFixed(0) + ' kWh',
+                amount: on * t.peakRate + off * t.offRate });
+        } else { // normal (ธุรกิจ)
+            demandKw = maxIn(s, false);
+            items.push({ key: 'demand', label: 'ค่าดีมานด์ (สูงสุด ' + demandKw.toFixed(1) + ' kW)', amount: demandKw * t.demandRate });
+            items.push({ key: 'energy', label: 'ค่าพลังงาน ' + total.toFixed(0) + ' kWh', amount: total * t.energyRate });
+        }
+        items.push({ key: 'service', label: 'ค่าบริการรายเดือน', amount: t.serviceFee });
+        items.push({ key: 'ft', label: 'ค่า Ft (' + ft + ' บาท/kWh)', amount: total * ft });
+        var subtotal = items.reduce(function (a, x) { return a + x.amount; }, 0);
+        var vat = subtotal * vr;
+        items.push({ key: 'vat', label: 'ภาษีมูลค่าเพิ่ม ' + (vr * 100).toFixed(0) + '%', amount: vat });
+        return {
+            key: key, label: t.label, group: t.group, kind: t.kind,
+            monthlyKwh: total, onKwh: on, offKwh: off, demandKw: demandKw,
+            items: items, subtotal: subtotal, vat: vat, total: subtotal + vat,
+            demandApplies: t.demandRate !== undefined
+        };
+    }
+
+    // kW สูงสุด: onlyPeak=true ใช้เฉพาะช่วง 09:00–22:00
+    function maxIn(s, onlyPeak) {
+        var m = 0;
+        for (var i = 0; i < SLOTS; i++) {
+            var minute = i * 15;
+            var inPeak = minute >= ON_START_MIN && minute < ON_END_MIN;
+            if ((!onlyPeak || inPeak) && s[i] > m) m = s[i];
+        }
+        return m;
+    }
+
+    // รายเดือน 12 เดือน (แต่ละเดือนมีโปรไฟล์ของตัวเอง หรือใช้ชุดเดียวกันก็ได้)
+    function annualBills(monthlySlots, key, opts) {
+        var out = [];
+        for (var m = 0; m < 12; m++) out.push(billBreakdown(monthlySlots[m], key, opts));
+        var sum = 0; for (var k = 0; k < 12; k++) sum += out[k].total;
+        return { months: out, annualTotal: sum };
+    }
+
+    // โปรไฟล์เฉลี่ย 12 เดือน (ใช้ป้อนเครื่องคำนวณขนาดโซลาร์แบบเดิม)
+    function averageSlots(monthlySlots) {
+        var avg = Array(SLOTS).fill(0);
+        for (var m = 0; m < 12; m++) {
+            var s = cleanSlots(monthlySlots[m]);
+            for (var i = 0; i < SLOTS; i++) avg[i] += s[i] / 12;
+        }
+        return avg;
+    }
+
     return {
+        TARIFFS: TARIFFS, billBreakdown: billBreakdown, annualBills: annualBills, averageSlots: averageSlots,
         slotsToData: slotsToData, THAI_MONTHS: THAI_MONTHS,
         DEMAND_TARIFFS: DEMAND_TARIFFS, demandBill: demandBill,
         SLOTS: SLOTS, dailyKwh: dailyKwh, monthlyBill: monthlyBill,
