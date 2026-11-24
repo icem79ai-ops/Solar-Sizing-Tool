@@ -62,7 +62,7 @@ window.addEventListener('unhandledrejection', function (e) {
     <div class="card">
       <h2>✏️ สร้างโหลดโปรไฟล์เอง</h2>
       <p class="hint">ไม่มีไฟล์จากมิเตอร์? วาดโหลดรายวันทีละ 15 นาที เลือกอัตราค่าไฟ แล้วดูว่าค่าไฟเกิดจากอะไรบ้าง · บ้านอยู่อาศัยไม่มีค่าดีมานด์ · ทุกวันในเดือนถือว่าเหมือนกัน</p>
-      <button type="button" id="btn-open-draw">เปิดตัววาดโหลด</button>
+      <button type="button" class="btn" id="btn-open-draw">เปิดตัววาดโหลด</button>
       <div id="draw-area" hidden>
         <div class="draw-row">
           <label>อัตราค่าไฟ <select id="draw-rate"></select></label>
@@ -75,9 +75,9 @@ window.addEventListener('unhandledrejection', function (e) {
         </div>
         <div class="month-tabs" id="draw-months"></div>
         <div class="draw-row">
-          <button type="button" id="btn-copy-all">คัดลอกเดือนนี้ไปทุกเดือน</button>
+          <button type="button" class="btn" id="btn-copy-all">คัดลอกเดือนนี้ไปทุกเดือน</button>
           <label>เดือนอ้างอิงค่าแดด (PSH) <select id="draw-month"></select></label>
-          <button type="button" id="btn-use-draw">▶ ใช้โปรไฟล์นี้คำนวณ</button>
+          <button type="button" class="btn primary" id="btn-use-draw">▶ ใช้โปรไฟล์นี้คำนวณ</button>
         </div>
         <div id="draw-pad"></div>
         <div id="draw-bill"></div>
@@ -246,15 +246,16 @@ window.addEventListener('unhandledrejection', function (e) {
         <input type="number" step="0.0001" id="set-off-rate">
       </div>
       <div id="set-flat-wrap">
-        <label class="lbl">ค่าไฟ Flat (บาท/kWh)</label>
+        <label class="lbl">ค่าพลังงาน (บาท/kWh)</label>
         <input type="number" step="0.0001" id="set-flat-rate">
+      </div>
+      <div id="set-demand-wrap">
+        <label class="lbl">ค่าดีมานด์ (บาท/kW ต่อเดือน) — ใช้ค่า Peak ของ TOU ด้วย</label>
+        <input type="number" step="0.01" id="set-demand-rate">
       </div>
       <div id="set-prog-rate">
         <label class="lbl">อัตราก้าวหน้า (บาท/kWh)</label>
         <div id="set-prog-tiers"></div>
-        <div class="grid2">
-          <div><label class="lbl sm">ค่าบริการ/เดือน (อัตราก้าวหน้า)</label><input type="number" step="0.01" id="set-prog-service"></div>
-        </div>
       </div>
       <div class="grid2">
         <div><label class="lbl">ค่าบริการ/เดือน</label><input type="number" step="0.01" id="set-service"></div>

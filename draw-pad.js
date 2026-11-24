@@ -36,6 +36,7 @@
         var kmaxLbl = el('label', null, 'แกน kW สูงสุด ');
         kmaxLbl.appendChild(kmaxIn);
         var status = el('span', { class: 'note' });
+        [btnUndo, btnRedo, btnClear, btnSample].forEach(function (b) { b.className = 'btn'; });
         [btnUndo, btnRedo, btnClear, btnSample, kmaxLbl, status].forEach(function (n) { bar.appendChild(n); });
 
         var cv = el('canvas', { width: '960', height: '380', class: 'draw-canvas' });

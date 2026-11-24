@@ -172,10 +172,26 @@
 
     // คิดค่าไฟ 1 เดือนของโปรไฟล์ 96 ช่วง/วัน (30 วัน) แยกรายการ
     // คืนค่า items = รายการที่ประกอบเป็นบิล (ไว้แสดงกราฟแท่งสัดส่วน)
+    // ใช้ค่าที่ผู้ใช้แก้เอง (ทับค่าประกาศ) โดยไม่แก้ทะเบียนต้นฉบับ
+    function applyOverrides(t, ov) {
+        var out = JSON.parse(JSON.stringify(t));
+        if (!ov) return out;
+        ['peakRate', 'offRate', 'energyRate', 'demandRate', 'serviceFee'].forEach(function (k) {
+            if (ov[k] !== undefined && ov[k] !== null && isFinite(Number(ov[k]))) out[k] = Number(ov[k]);
+        });
+        if (Array.isArray(ov.tierRates) && out.tiers) {
+            out.tiers = out.tiers.map(function (r, i) {
+                var v = Number(ov.tierRates[i]);
+                return [r[0], isFinite(v) ? v : r[1]];
+            });
+        }
+        return out;
+    }
+
     function billBreakdown(slots, key, opts) {
-        var t = TARIFFS[key];
-        if (!t) throw new Error('ไม่รู้จักอัตรา: ' + key);
+        if (!TARIFFS[key]) throw new Error('ไม่รู้จักอัตรา: ' + key);
         opts = opts || {};
+        var t = applyOverrides(TARIFFS[key], opts.ov);
         var ft = opts.ftRate === undefined ? FT_RATE : opts.ftRate;
         var vr = opts.vatRate === undefined ? VAT_RATE : opts.vatRate;
         var s = cleanSlots(slots);
@@ -231,9 +247,9 @@
 
     // อัตราของ กฟภ. ในรูปแบบที่เครื่องคำนวณหลัก (core.js) ใช้ได้
     // หมายเหตุ: อัตราดีมานด์ยังไม่อยู่ในเครื่องหลัก ใช้แสดงผลเฉพาะหน้านี้
-    function toCoreTariff(key, base) {
-        var t = TARIFFS[key];
-        if (!t) throw new Error('ไม่รู้จักอัตรา: ' + key);
+    function toCoreTariff(key, base, ov) {
+        if (!TARIFFS[key]) throw new Error('ไม่รู้จักอัตรา: ' + key);
+        var t = applyOverrides(TARIFFS[key], ov);
         var b = JSON.parse(JSON.stringify(base));
         if (t.kind === 'progressive') {
             b.mode = 'progressive';
@@ -261,7 +277,7 @@
     }
 
     return {
-        TARIFFS: TARIFFS, toCoreTariff: toCoreTariff, billBreakdown: billBreakdown, annualBills: annualBills, averageSlots: averageSlots,
+        TARIFFS: TARIFFS, applyOverrides: applyOverrides, toCoreTariff: toCoreTariff, billBreakdown: billBreakdown, annualBills: annualBills, averageSlots: averageSlots,
         slotsToData: slotsToData, THAI_MONTHS: THAI_MONTHS,
         DEMAND_TARIFFS: DEMAND_TARIFFS, demandBill: demandBill,
         SLOTS: SLOTS, dailyKwh: dailyKwh, monthlyBill: monthlyBill,

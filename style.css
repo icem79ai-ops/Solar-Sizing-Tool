@@ -266,8 +266,7 @@ tbody tr:hover { background: rgba(255,255,255,.03); }
 .draw-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
 .draw-row label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; }
 .month-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.month-tabs button { font-size: .8rem; padding: 4px 9px; border-radius: 6px; border: 1px solid #2a3344; background: #1e2736; color: inherit; cursor: pointer; }
-.month-tabs button.active { background: #ff9f43; color: #111; border-color: #ff9f43; }
+#set-demand-wrap { margin-top: 8px; }
 .bill-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin: 10px 0; background: #1e2736; }
 .bill-seg { height: 100%; min-width: 0; }
 .bill-table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: 12px; }

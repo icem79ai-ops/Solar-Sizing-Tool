@@ -11,7 +11,6 @@
         data: null,
         settings: null,
         tariffPreset: 'auto',
-        customKind: null,
         sizingMode: 'ongrid',
         savMode: 'ongrid',
         sizingBattery: 10,
@@ -42,8 +41,8 @@
     }
     // ชื่ออัตราที่ใช้จริงของ tariff หนึ่งชุด (preset ที่เลือก หรือ 'กำหนดเอง')
     function tariffText(t) {
-        var p = Core.TARIFF_PRESETS[t.preset];
-        if (p) return p.label;
+        if (t.preset && DrawCalc.TARIFFS[t.preset]) return DrawCalc.TARIFFS[t.preset].label;
+        var p = null;
         if (t.mode === 'progressive') return 'อัตราก้าวหน้า (กำหนดเอง)';
         if (t.mode === 'flat') return 'Flat (กำหนดเอง)';
         return 'TOU (กำหนดเอง)';
@@ -58,13 +57,25 @@
     }
     // preset ที่จะใช้จริง: ที่ผู้ใช้เลือก หรือเดาจากช่อง Tariff ในไฟล์
     function resolvePreset() {
-        if (state.tariffPreset && state.tariffPreset !== 'auto') return state.tariffPreset;
+        if (state.tariffPreset && DrawCalc.TARIFFS[state.tariffPreset]) return state.tariffPreset;
         var code = state.data && state.data.metadata ? state.data.metadata.tariff : null;
-        return Core.presetFromTariffCode(code) || 'tou';
+        var g = Core.presetFromTariffCode(code);
+        if (g === 'prog3') return 'r112';
+        if (g === 'tou') return 'r122';
+        return 'r111';
+    }
+    // แปลงค่าที่บันทึกไว้แบบเก่าให้เป็นรหัสในทะเบียนใหม่
+    function migratePreset(k) {
+        var map = { tou: 'r122', prog5: 'r111', prog3: 'r112', flat: 'r111', custom: 'r111', auto: 'auto' };
+        if (map[k]) return map[k];
+        if (k && DrawCalc.TARIFFS[k]) return k;
+        return 'auto';
     }
 
     // -------------------------------------------------------------- settings
     function loadSettings() {
+        state.tariffPreset = state.tariffPreset || 'auto';
+        state.rateOverrides = {};
         try {
             var raw = localStorage.getItem('pso_settings_v2');
             if (raw) {
@@ -75,14 +86,8 @@
                 if (o.battery) Object.assign(s.battery, o.battery);
                 if (o.location) { s.location = s.location || {}; Object.assign(s.location, o.location); }
                 s.monthOverride = o.monthOverride === undefined ? null : o.monthOverride;
-                if (o.tariffPreset) state.tariffPreset = o.tariffPreset;
-                else {
-                    // ค่าเก่าเก็บเป็น tariffMode — แปลงให้ตรง (progressive เดิม = เลขที่ผู้ใช้แก้เอง)
-                    var legacy = o.tariffMode;
-                    state.tariffPreset = (legacy === 'tou' || legacy === 'flat') ? legacy
-                        : (legacy === 'progressive' ? 'custom' : 'auto');
-                }
-                state.customKind = s.tariff.mode || 'tou';
+                state.tariffPreset = migratePreset(o.tariffPreset || o.tariffMode || 'auto');
+                state.rateOverrides = o.rateOverrides || {};
                 return s;
             }
         } catch (e) { /* ignore */ }
@@ -95,21 +100,16 @@
             battery: state.settings.battery,
             location: state.settings.location,
             monthOverride: state.settings.monthOverride,
-            tariffPreset: state.tariffPreset
+            tariffPreset: state.tariffPreset,
+            rateOverrides: state.rateOverrides || {}
         }));
     }
 
     function effectiveSettings() {
         var s = JSON.parse(JSON.stringify(state.settings));
-        var preset = resolvePreset();
-        if (Core.TARIFF_PRESETS[preset]) {
-            s.tariff = Core.tariffFromPreset(preset, s.tariff);
-        } else if (!s.tariff.mode) {
-            s.tariff.mode = 'progressive';
-        }
-        if (state.drawnTariff && state.data && state.data.isDrawn) {
-            s.tariff = JSON.parse(JSON.stringify(state.drawnTariff));
-        }
+        var key = resolvePreset();
+        s.tariff = DrawCalc.toCoreTariff(key, s.tariff, ovFor(key));
+        s.tariff.preset = key;
         return s;
     }
     function selectedMonth() {
@@ -163,7 +163,6 @@
     }
 
     function parseFiles() {
-        state.drawnTariff = null;
         var res = Core.parseAmrFiles(files, XLSX);
         if (res.error) {
             state.data = null;
@@ -208,24 +207,12 @@
     function renderTariffSelect(S) {
         var sel = $('ana-tariff');
         if (!sel) return;
-        var html = ['<option value="auto">ตรวจจากไฟล์ (อัตโนมัติ)</option>'];
-        Core.PRESET_ORDER.forEach(function (k) {
-            html.push('<option value="' + k + '">' + Core.TARIFF_PRESETS[k].label + '</option>');
-        });
-        html.push('<option value="custom">กำหนดเอง (แก้ตัวเลขในหน้าตั้งค่า)</option>');
-        sel.innerHTML = html.join('');
-        sel.value = state.tariffPreset;
-
+        sel.innerHTML = rateSelectHtml(true);
+        sel.value = state.tariffPreset || 'auto';
         var code = state.data && state.data.metadata ? state.data.metadata.tariff : null;
-        var txt;
+        var txt = 'ใช้จริง: ' + tariffText(S.tariff) + ' · ' + tariffDetail(S.tariff);
         if (state.tariffPreset === 'auto') {
-            txt = 'ใช้จริง: ' + tariffText(S.tariff) +
-                (code ? ' — ตรวจจากไฟล์: Tariff ' + code
-                      : ' — ไฟล์ไม่มีช่อง Tariff จึงใช้ TOU เป็นค่าเริ่มต้น');
-        } else if (state.tariffPreset === 'custom') {
-            txt = 'ใช้ค่าที่แก้เอง: ' + tariffDetail(S.tariff);
-        } else {
-            txt = Core.TARIFF_PRESETS[state.tariffPreset].detail;
+            txt += code ? ' — ตรวจจากไฟล์: Tariff ' + code : ' — ไฟล์ไม่มีช่อง Tariff จึงใช้ 1.1.1 เป็นค่าเริ่มต้น';
         }
         $('ana-tariff-detail').textContent = txt;
     }
@@ -753,102 +740,77 @@
         }
         return out;
     }
+    // ---------------------------------------------------- อัตราค่าไฟ (ทะเบียนเดียว)
+    function ovFor(key) { return (state.rateOverrides || {})[key]; }
+    function billOpts(key) {
+        return { ov: ovFor(key), ftRate: state.settings.tariff.ftRate, vatRate: state.settings.tariff.vatRate };
+    }
+    function rateOptionHtml(k) { return '<option value="' + k + '">' + DrawCalc.TARIFFS[k].label + '</option>'; }
+    function rateSelectHtml(withAuto) {
+        return (withAuto ? '<option value="auto">ตรวจจากไฟล์ (อัตโนมัติ)</option>' : '') +
+            '<optgroup label="บ้านอยู่อาศัย">' + ['r111', 'r112', 'r121', 'r122'].map(rateOptionHtml).join('') + '</optgroup>' +
+            '<optgroup label="กิจการขนาดกลาง ไม่เกิน 33 kV (มีค่าดีมานด์)">' + ['d31', 'd31s', 'd32', 'd32s'].map(rateOptionHtml).join('') + '</optgroup>';
+    }
+    function num(id) { var v = parseFloat($(id).value); return isNaN(v) ? 0 : v; }
     function openSettings() {
-        var s = state.settings, t = s.tariff;
-        $('set-tariff-preset').value = state.tariffPreset;
-        $('set-on-rate').value = t.onPeakRate;
-        $('set-off-rate').value = t.offPeakRate;
-        $('set-flat-rate').value = t.flatRate;
-        $('set-service').value = t.serviceFee;
-        $('set-ft').value = t.ftRate;
-        $('set-vat').value = t.vatRate * 100;
+        var s = state.settings;
+        $('set-tariff-preset').innerHTML = rateSelectHtml(true);
+        $('set-tariff-preset').value = state.tariffPreset || 'auto';
+        var key = (!state.tariffPreset || state.tariffPreset === 'auto') ? resolvePreset() : state.tariffPreset;
+        fillRateFields(key);
+        $('set-ft').value = s.tariff.ftRate;
+        $('set-vat').value = s.tariff.vatRate * 100;
         $('set-solar-price').value = s.solar.pricePerKwp;
         $('set-loss').value = s.solar.systemLosses * 100;
         $('set-batt-price').value = s.battery.pricePerKwh;
-        renderProgTiers(t.progTiers);
-        $('set-prog-service').value = t.progServiceFee;
-        if (Core.TARIFF_PRESETS[state.tariffPreset]) applyPresetInputs(state.tariffPreset);
-        showTariffFields(state.tariffPreset);
         $('modal').hidden = false;
     }
-    function presetKind(preset) {
-        if (preset === 'auto') {
-            var r = resolvePreset();
-            return Core.TARIFF_PRESETS[r] ? Core.TARIFF_PRESETS[r].mode : 'tou';
-        }
-        if (preset === 'custom') return state.customKind || state.settings.tariff.mode || 'progressive';
-        var p = Core.TARIFF_PRESETS[preset];
-        return p ? p.mode : 'tou';
-    }
-    // เติมช่องตัวเลขในหน้าตั้งค่าด้วยค่ามาตรฐานของ preset
-    function applyPresetInputs(preset) {
-        var p = Core.TARIFF_PRESETS[preset];
-        if (!p) return;
-        if (p.onPeakRate !== undefined) $('set-on-rate').value = p.onPeakRate;
-        if (p.offPeakRate !== undefined) $('set-off-rate').value = p.offPeakRate;
-        if (p.flatRate !== undefined) $('set-flat-rate').value = p.flatRate;
-        if (p.serviceFee !== undefined) $('set-service').value = p.serviceFee;
-        if (p.progTiers) {
-            renderProgTiers(p.progTiers);
-            $('set-prog-service').value = p.progServiceFee;
-        }
-        state.customKind = p.mode;
-    }
-    function showTariffFields(preset) {
-        var kind = presetKind(preset);
-        $('set-tou-rate').style.display = kind === 'tou' ? '' : 'none';
-        $('set-prog-rate').style.display = kind === 'progressive' ? '' : 'none';
-        $('set-flat-wrap').style.display = kind === 'flat' ? '' : 'none';
-        var p = Core.TARIFF_PRESETS[preset];
-        $('set-preset-detail').textContent = p ? p.detail
-            : (preset === 'auto' ? 'จะใช้ ' + Core.TARIFF_PRESETS[resolvePreset()].label + ' ตามช่อง Tariff ในไฟล์'
-                : 'แก้ตัวเลขเองได้ทุกช่อง');
+    // เติมช่องพารามิเตอร์ของอัตราที่เลือก (ค่าประกาศ + ค่าที่ผู้ใช้เคยแก้)
+    function fillRateFields(key) {
+        var reg = DrawCalc.TARIFFS[key];
+        var r = DrawCalc.applyOverrides(reg, ovFor(key));
+        $('set-preset-detail').textContent = reg.label +
+            (reg.group === 'business' ? ' — มีค่าดีมานด์' : ' — บ้านอยู่อาศัย ไม่มีค่าดีมานด์');
+        $('set-on-rate').value = r.peakRate !== undefined ? r.peakRate : '';
+        $('set-off-rate').value = r.offRate !== undefined ? r.offRate : '';
+        $('set-flat-rate').value = r.energyRate !== undefined ? r.energyRate : '';
+        $('set-service').value = r.serviceFee;
+        $('set-demand-rate').value = r.demandRate !== undefined ? r.demandRate : '';
+        renderProgTiers(reg.kind === 'progressive' ? r.tiers : null);
+        $('set-tou-rate').style.display = reg.kind === 'tou' ? '' : 'none';
+        $('set-prog-rate').style.display = reg.kind === 'progressive' ? '' : 'none';
+        $('set-flat-wrap').style.display = reg.kind === 'normal' ? '' : 'none';
+        $('set-demand-wrap').style.display = reg.demandRate !== undefined ? '' : 'none';
     }
     function saveSettingsUi() {
         var s = state.settings;
-        var preset = $('set-tariff-preset').value;
-        var kind = presetKind(preset);
-        s.tariff.onPeakRate = parseFloat($('set-on-rate').value) || 0;
-        s.tariff.offPeakRate = parseFloat($('set-off-rate').value) || 0;
-        s.tariff.flatRate = parseFloat($('set-flat-rate').value) || 0;
-        s.tariff.serviceFee = parseFloat($('set-service').value) || 0;
-        s.tariff.ftRate = parseFloat($('set-ft').value) || 0;
-        s.tariff.vatRate = (parseFloat($('set-vat').value) || 0) / 100;
-        var tiers = readProgTiers();
-        if (tiers.length) s.tariff.progTiers = tiers;
-        s.tariff.progServiceFee = parseFloat($('set-prog-service').value) || 0;
-        s.tariff.mode = kind;
-        s.tariff.preset = preset;
-
-        // preset ที่มีเลขมาตรฐาน: บันทึกเป็น preset (เลขจะถูกทับด้วยค่ามาตรฐาน)
-        // ถ้าผู้ใช้แก้เลขเอง ให้เก็บเป็น 'custom' เพื่อไม่ให้ค่าที่แก้หาย
-        if (preset !== 'auto' && preset !== 'custom' && !sameAsPreset(preset, s.tariff)) {
-            state.tariffPreset = 'custom';
-        } else {
-            state.tariffPreset = preset;
+        var key = $('set-tariff-preset').value;
+        state.tariffPreset = key;
+        if (key !== 'auto') {
+            var reg = DrawCalc.TARIFFS[key];
+            var ov = { serviceFee: num('set-service') };
+            if (reg.kind === 'tou') { ov.peakRate = num('set-on-rate'); ov.offRate = num('set-off-rate'); }
+            if (reg.kind === 'normal') ov.energyRate = num('set-flat-rate');
+            if (reg.kind === 'progressive') ov.tierRates = readProgTiers().map(function (r) { return r[1]; });
+            if (reg.demandRate !== undefined) ov.demandRate = num('set-demand-rate');
+            state.rateOverrides = state.rateOverrides || {};
+            state.rateOverrides[key] = ov;
         }
-        s.tariff.preset = state.tariffPreset;
-
-        s.solar.pricePerKwp = parseFloat($('set-solar-price').value) || 40000;
-        s.solar.systemLosses = (parseFloat($('set-loss').value) || 25) / 100;
-        s.battery.pricePerKwh = parseFloat($('set-batt-price').value) || 9000;
+        s.tariff.ftRate = num('set-ft');
+        s.tariff.vatRate = num('set-vat') / 100;
+        s.solar.pricePerKwp = num('set-solar-price') || 40000;
+        s.solar.systemLosses = (num('set-loss') || 25) / 100;
+        s.battery.pricePerKwh = num('set-batt-price') || 9000;
         saveSettings();
         $('modal').hidden = true;
+        syncHomeRate();
+        if (drawMonths) renderBill();
         if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
-        toast('บันทึกการตั้งค่าแล้ว (' + tariffText(effectiveSettings().tariff) + ')');
+        toast('บันทึกการตั้งค่าแล้ว · ' + DrawCalc.TARIFFS[resolvePreset()].label);
     }
-    function sameAsPreset(preset, t) {
-        var ref = Core.tariffFromPreset(preset, t);
-        if (!ref) return false;
-        if (ref.mode !== t.mode) return false;
-        if (ref.mode === 'tou') return Math.abs(ref.onPeakRate - t.onPeakRate) < 1e-9 && Math.abs(ref.offPeakRate - t.offPeakRate) < 1e-9;
-        if (ref.mode === 'flat') return Math.abs(ref.flatRate - t.flatRate) < 1e-9;
-        if (!ref.progTiers || !t.progTiers || ref.progTiers.length !== t.progTiers.length) return false;
-        for (var i = 0; i < ref.progTiers.length; i++) {
-            if (ref.progTiers[i][0] !== t.progTiers[i][0]) return false;
-            if (Math.abs(ref.progTiers[i][1] - t.progTiers[i][1]) > 1e-9) return false;
-        }
-        return Math.abs(ref.progServiceFee - t.progServiceFee) < 1e-9;
+    function syncHomeRate() {
+        var sel = $('draw-rate');
+        if (sel && sel.options.length) sel.value = resolvePreset();
     }
     function backup() {
         download('solar-settings-' + new Date().toISOString().slice(0, 10) + '.json',
@@ -870,12 +832,8 @@
                 if (o.battery) Object.assign(s.battery, o.battery);
                 s.monthOverride = o.monthOverride === undefined ? null : o.monthOverride;
                 state.settings = s;
-                if (o.tariffPreset) state.tariffPreset = o.tariffPreset;
-                else if (o.tariffMode) {
-                    state.tariffPreset = (o.tariffMode === 'tou' || o.tariffMode === 'flat') ? o.tariffMode
-                        : (o.tariffMode === 'progressive' ? 'custom' : 'auto');
-                }
-                state.customKind = s.tariff.mode || state.customKind;
+                state.tariffPreset = migratePreset(o.tariffPreset || o.tariffMode || state.tariffPreset || 'auto');
+                if (o.rateOverrides) state.rateOverrides = Object.assign({}, state.rateOverrides || {}, o.rateOverrides);
                 saveSettings();
                 toast('กู้คืนข้อมูลเรียบร้อย (ผสานกับค่าเดิม ไม่ทับ)');
                 if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
@@ -913,7 +871,7 @@
         $('draw-rate').innerHTML =
             '<optgroup label="บ้านอยู่อาศัย (ไม่มีค่าดีมานด์)">' + ['r111', 'r112', 'r121', 'r122'].map(rateOption).join('') + '</optgroup>' +
             '<optgroup label="กิจการขนาดกลาง ไม่เกิน 33 kV (มีค่าดีมานด์)">' + ['d31', 'd31s', 'd32', 'd32s'].map(rateOption).join('') + '</optgroup>';
-        $('draw-rate').value = 'r111';
+        $('draw-rate').value = resolvePreset();
         $('draw-view').value = drawSame ? 'same' : 'per';
         $('draw-month').innerHTML = DrawCalc.THAI_MONTHS.map(function (n, i) {
             return '<option value="' + (i + 1) + '"' + (i + 1 === DRAW_MONTH_DEFAULT ? ' selected' : '') + '>' + n + '</option>';
@@ -935,7 +893,7 @@
     function buildMonthTabs() {
         var box = $('draw-months');
         box.innerHTML = MONTH_SHORT.map(function (n, i) {
-            return '<button type="button" data-m="' + i + '"' + (i === drawCur ? ' class="active"' : '') + '>' + n + '</button>';
+            return '<button type="button" class="opt' + (i === drawCur ? ' active' : '') + '" data-m="' + i + '">' + n + '</button>';
         }).join('');
         Array.prototype.forEach.call(box.querySelectorAll('button'), function (b) {
             b.addEventListener('click', function () { selectMonth(Number(b.dataset.m)); });
@@ -962,12 +920,19 @@
         renderBill();
     }
 
+    function onHomeRateChange() {
+        state.tariffPreset = $('draw-rate').value;
+        saveSettings();
+        renderBill();
+        if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
+    }
+
     function renderBill() {
         var box = $('draw-bill');
         if (!box || !drawMonths) return;
         var key = $('draw-rate').value;
         var t = DrawCalc.TARIFFS[key];
-        var yr = DrawCalc.annualBills(drawMonths, key);
+        var yr = DrawCalc.annualBills(drawMonths, key, billOpts(key));
         var cur = yr.months[drawCur];
         var total = cur.total;
         var note = t.group === 'business'
@@ -1004,7 +969,8 @@
         var avg = DrawCalc.averageSlots(drawMonths);
         var data = DrawCalc.slotsToData(avg, { month: month, year: 2026, nDays: 30 });
         if (!(data.totalKwh > 0)) { toast('ยังไม่มีโหลดในกราฟ — ลากวาดก่อน', true); return; }
-        state.drawnTariff = DrawCalc.toCoreTariff(key, state.settings.tariff);
+        state.tariffPreset = key;
+        saveSettings();
         state.data = data;
         $('load-error').hidden = true;
         $('file-info').hidden = false;
@@ -1050,7 +1016,7 @@
         $('btn-open-draw').addEventListener('click', openDrawPad);
         $('btn-use-draw').addEventListener('click', useDrawnProfile);
         $('btn-copy-all').addEventListener('click', copyMonthToAll);
-        $('draw-rate').addEventListener('change', renderBill);
+        $('draw-rate').addEventListener('change', onHomeRateChange);
         $('draw-view').addEventListener('change', changeDrawView);
 
         document.querySelectorAll('#sav-mode .opt').forEach(function (b) {
@@ -1081,10 +1047,7 @@
             saveSettings();
         });
         $('set-tariff-preset').addEventListener('change', function () {
-            state.tariffPreset = this.value;
-            applyPresetInputs(this.value);
-            showTariffFields(this.value);
-            if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
+            fillRateFields(this.value === 'auto' ? resolvePreset() : this.value);
         });
         $('btn-save-settings').addEventListener('click', saveSettingsUi);
         $('btn-backup').addEventListener('click', backup);
