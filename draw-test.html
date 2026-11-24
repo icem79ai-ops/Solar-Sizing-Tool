@@ -22,7 +22,7 @@
 <body>
 <div class="wrap">
   <h2>✏️ ทดลองวาดโหลดโปรไฟล์ <span class="note">(หน้าทดลอง ยังไม่ใช่หน้าหลัก)</span></h2>
-  <p class="note">ลากเมาส์บนกราฟเพื่อกำหนดกำลังไฟ (kW) ของแต่ละชั่วโมง · วาดได้ทั้งคอมและมือถือ · ย้อนกลับได้ (Ctrl+Z)</p>
+  <p class="note">ลากเมาส์บนกราฟเพื่อกำหนดกำลังไฟ (kW) ทุก 15 นาที · วาดได้ทั้งคอมและมือถือ · ย้อนกลับได้ (Ctrl+Z)</p>
 
   <div class="row">
     <label>อัตราค่าไฟ
@@ -38,7 +38,7 @@
     </label>
   </div>
 
-  <canvas id="cv" width="960" height="380"></canvas>
+  <canvas id="cv" width="960" height="400"></canvas>
 
   <div class="row">
     <button id="undo" title="ย้อนกลับ (Ctrl+Z)">↶ ย้อนกลับ</button>
@@ -56,15 +56,16 @@
 <script>
 (function () {
   'use strict';
+  var SLOTS = DrawCalc.SLOTS;               // 96 ช่วง (ทุก 15 นาที)
   var cv = document.getElementById('cv');
   var ctx = cv.getContext('2d');
-  var PL = 56, PR = 12, PT = 12, PB = 34;     // ระยะขอบ (plot left/right/top/bottom)
-  var CELL_W = (cv.width - PL - PR) / 24;
+  var PL = 56, PR = 12, PT = 12, PB = 58;  // ระยะขอบ (ด้านล่างเผื่อป้ายเวลาแนวตั้ง)
+  var CELL_W = (cv.width - PL - PR) / SLOTS;
 
-  var hourly = Array(24).fill(0.5);
+  var slots = DrawCalc.hourlyToSlots(Array(24).fill(0.5));
   var past = [], future = [];
   var LIMIT = 200;
-  var drawing = false, lastH = null;
+  var drawing = false, lastI = null;
 
   var sel = document.getElementById('preset');
   var kmaxEl = document.getElementById('kmax');
@@ -73,40 +74,47 @@
     var v = Number(kmaxEl.value);
     return v >= 5 && v <= 500 ? v : 60;
   }
-
   function plotH() { return cv.height - PT - PB; }
   function yOf(kw) { return PT + plotH() * (1 - Math.min(kw, kmax()) / kmax()); }
-
-  function snapshot() { past.push(hourly.slice()); if (past.length > LIMIT) past.shift(); future = []; }
-
   function setStatus(t) { document.getElementById('status').textContent = t; }
+
+  function snapshot() { past.push(slots.slice()); if (past.length > LIMIT) past.shift(); future = []; }
 
   function render() {
     var W = cv.width, H = cv.height, K = kmax();
     ctx.clearRect(0, 0, W, H);
-    // เส้นกริดแกน y
     ctx.font = '13px sans-serif';
-    ctx.strokeStyle = '#2a3344'; ctx.fillStyle = '#9aa6bd'; ctx.lineWidth = 1;
-    var step = K / 4;
-    for (var i = 0; i <= 4; i++) {
-      var kv = step * i, y = yOf(kv);
+    ctx.lineWidth = 1;
+    // เส้นกริดแกน kW
+    ctx.strokeStyle = '#2a3344'; ctx.fillStyle = '#9aa6bd';
+    for (var g = 0; g <= 4; g++) {
+      var kv = K / 4 * g, y = yOf(kv);
       ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W - PR, y); ctx.stroke();
       ctx.fillText(kv.toFixed(0) + ' kW', 4, y + 4);
     }
-    // แท่งแต่ละชั่วโมง
-    for (var h = 0; h < 24; h++) {
-      var x = PL + h * CELL_W;
-      var top = yOf(hourly[h]), bottom = yOf(0);
-      var onPeak = h >= 9 && h < 22;
+    // แท่งทุกช่วง 15 นาที
+    for (var i = 0; i < SLOTS; i++) {
+      var x = PL + i * CELL_W;
+      var top = yOf(slots[i]), bottom = yOf(0);
+      var minute = i * 15;
+      var onPeak = minute >= 540 && minute < 1320;   // 09:00–22:00
       ctx.fillStyle = onPeak ? 'rgba(255,170,60,.85)' : 'rgba(90,170,255,.85)';
-      ctx.fillRect(x + 2, top, CELL_W - 4, bottom - top);
-      if (h % 3 === 0) {
-        ctx.fillStyle = '#9aa6bd';
-        ctx.fillText(String(h).padStart(2, '0') + ':00', x + 2, H - 12);
-      }
+      ctx.fillRect(x + 0.5, top, Math.max(1, CELL_W - 1), bottom - top);
+    }
+    // ป้ายเวลาทุก 30 นาที (แนวตั้ง เพื่อไม่ทับกัน)
+    for (var k = 0; k < SLOTS; k += 2) {
+      var lx = PL + k * CELL_W + CELL_W / 2;
+      var m = k * 15;
+      var label = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+      ctx.save();
+      ctx.translate(lx + 4, H - PB + 8);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = '#9aa6bd';
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
     }
     ctx.fillStyle = '#9aa6bd';
-    ctx.fillText('ส้ม = On-Peak (09–22) · ฟ้า = Off-Peak', PL, H - 12 + 0);
+    ctx.fillText('ส้ม = On-Peak (09:00–22:00) · ฟ้า = Off-Peak · ช่วงละ 15 นาที', PL, H - 6);
   }
 
   function pos(e) {
@@ -118,45 +126,44 @@
   function applyAt(e) {
     var p = pos(e);
     if (p.x < PL || p.x > cv.width - PR || p.y < PT || p.y > cv.height - PB) return;
-    var h = Math.min(23, Math.max(0, Math.floor((p.x - PL) / CELL_W)));
+    var i = Math.min(SLOTS - 1, Math.max(0, Math.floor((p.x - PL) / CELL_W)));
     var kw = (1 - (p.y - PT) / plotH()) * kmax();
     kw = Math.round(Math.min(kmax(), Math.max(0, kw)) * 10) / 10;
-    // ลากเร็ว: เติมชั่วโมงที่ข้ามไปด้วย
-    var from = lastH === null ? h : lastH;
-    var lo = Math.min(from, h), hi = Math.max(from, h);
-    for (var k = lo; k <= hi; k++) hourly[k] = kw;
-    lastH = h;
+    var from = lastI === null ? i : lastI;      // ลากเร็ว: เติมช่วงที่ข้ามไปด้วย
+    var lo = Math.min(from, i), hi = Math.max(from, i);
+    for (var k = lo; k <= hi; k++) slots[k] = kw;
+    lastI = i;
     render(); update();
   }
 
   cv.addEventListener('pointerdown', function (e) {
-    snapshot(); drawing = true; lastH = null;
+    snapshot(); drawing = true; lastI = null;
     cv.setPointerCapture(e.pointerId);
     applyAt(e);
   });
   cv.addEventListener('pointermove', function (e) { if (drawing) applyAt(e); });
-  function endStroke() { drawing = false; lastH = null; }
+  function endStroke() { drawing = false; lastI = null; }
   cv.addEventListener('pointerup', endStroke);
   cv.addEventListener('pointercancel', endStroke);
 
   function undo() {
     if (!past.length) { setStatus('ไม่มีอะไรให้ย้อนกลับ'); return; }
-    future.push(hourly.slice()); hourly = past.pop(); render(); update(); setStatus('ย้อนกลับแล้ว');
+    future.push(slots.slice()); slots = past.pop(); render(); update(); setStatus('ย้อนกลับแล้ว');
   }
   function redo() {
     if (!future.length) { setStatus('ไม่มีอะไรให้ทำซ้ำ'); return; }
-    past.push(hourly.slice()); hourly = future.pop(); render(); update(); setStatus('ทำซ้ำแล้ว');
+    past.push(slots.slice()); slots = future.pop(); render(); update(); setStatus('ทำซ้ำแล้ว');
   }
 
   document.getElementById('undo').onclick = undo;
   document.getElementById('redo').onclick = redo;
   document.getElementById('clear').onclick = function () {
-    snapshot(); hourly = Array(24).fill(0); render(); update(); setStatus('ล้างแล้ว (ย้อนกลับได้)');
+    snapshot(); slots = Array(SLOTS).fill(0); render(); update(); setStatus('ล้างแล้ว (ย้อนกลับได้)');
   };
   document.getElementById('sample').onclick = function () {
-    // โปรไฟล์บ้านทั่วไป: ต่ำตอนกลางคืน สูงช่วงเย็น
-    var s = [0.3,0.3,0.3,0.3,0.3,0.3,0.5,0.8,1.0,1.2,1.2,1.0,1.0,1.0,1.1,1.5,2.5,4.0,5.0,4.5,3.5,2.0,1.0,0.5];
-    snapshot(); hourly = s; render(); update(); setStatus('ใส่ตัวอย่างแล้ว (ย้อนกลับได้)');
+    // โปรไฟล์บ้านทั่วไป (รายชั่วโมง) ขยายเป็น 15 นาที
+    var h = [0.3,0.3,0.3,0.3,0.3,0.3,0.5,0.8,1.0,1.2,1.2,1.0,1.0,1.0,1.1,1.5,2.5,4.0,5.0,4.5,3.5,2.0,1.0,0.5];
+    snapshot(); slots = DrawCalc.hourlyToSlots(h); render(); update(); setStatus('ใส่ตัวอย่างแล้ว (ย้อนกลับได้)');
   };
   sel.onchange = update;
   kmaxEl.onchange = function () { render(); update(); };
@@ -171,20 +178,30 @@
 
   function update() {
     var r = document.getElementById('result');
-    var chosen = DrawCalc.monthlyBill(hourly, sel.value);
-    var all = DrawCalc.compareAll(hourly);
+    var chosen = DrawCalc.monthlyBill(slots, sel.value);
+    var all = DrawCalc.compareAll(slots);
     var d = chosen.daily;
+    var b = chosen.monthly;
     r.innerHTML =
       '<p><b>วันหนึ่ง:</b> ' + fmt(d.totalKwh, 1) + ' kWh (On-Peak ' + fmt(d.onKwh, 1) +
       ' / Off-Peak ' + fmt(d.offKwh, 1) + ') · Peak ' + fmt(d.peakKw, 1) + ' kW</p>' +
-      '<p><b>ทั้งเดือน (30 วัน):</b> ' + fmt(chosen.monthlyKwh, 0) + ' kWh · ค่าไฟโดยประมาณ <b>' +
-      fmt(chosen.monthly.grandTotal, 0) + ' บาท</b> (อัตรา: ' + chosen.label + ')</p>' +
-      '<table><tr><th>อัตรา</th><th>ค่าไฟ/เดือน (บาท)</th></tr>' +
-      all.map(function (x) {
-        return '<tr' + (x.preset === sel.value ? ' class="sel"' : '') + '><td>' + x.label +
-          '</td><td>' + fmt(x.monthly.grandTotal, 0) + '</td></tr>';
-      }).join('') + '</table>' +
-      '<p class="note">หมายเหตุ: ตัวเลขนี้คิดจากโปรไฟล์ที่วาด ไม่ได้หักค่าโซลาร์ · วันทุกวันเหมือนกัน 30 วัน</p>';
+      '<p><b>ทั้งเดือน (30 วัน):</b> ' + fmt(chosen.monthlyKwh, 0) + ' kWh · อัตรา: ' + chosen.label + '</p>' +
+      '<table>' +
+        '<tr><td>ค่าพลังงาน</td><td>' + fmt(b.energyCharge, 2) + '</td></tr>' +
+        '<tr><td>ค่า FT (' + chosen.ftRate + ' บาท/kWh)</td><td>' + fmt(b.ftCharge, 2) + '</td></tr>' +
+        '<tr><td>ค่าบริการ</td><td>' + fmt(b.serviceFee, 2) + '</td></tr>' +
+        '<tr><td>VAT 7%</td><td>' + fmt(b.vat, 2) + '</td></tr>' +
+        '<tr><td><b>รวมค่าไฟต่อเดือน (ยังไม่รวมดีมานด์)</b></td><td><b>' + fmt(b.grandTotal, 2) + '</b></td></tr>' +
+      '</table>' +
+      '<p class="note">⚠️ ยังไม่รวม <b>ค่าดีมานด์ (Demand charge)</b> — เครื่องคำนวณเดิมไม่มีค่านี้ ต้องกำหนดอัตราดีมานด์ก่อนจึงจะคิดได้</p>' +
+      '<table>' +
+        '<tr><th>อัตรา</th><th>ค่าไฟ/เดือน (บาท, ไม่รวมดีมานด์)</th></tr>' +
+        all.map(function (x) {
+          return '<tr' + (x.preset === sel.value ? ' class="sel"' : '') + '><td>' + x.label +
+            '</td><td>' + fmt(x.monthly.grandTotal, 0) + '</td></tr>';
+        }).join('') +
+      '</table>' +
+      '<p class="note">วันทุกวันเหมือนกัน 30 วัน · ยังไม่หักค่าโซลาร์</p>';
   }
 
   render(); update();
