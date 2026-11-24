@@ -550,7 +550,11 @@
         var bprice = (opts.batteryPricePerKwh !== undefined) ? opts.batteryPricePerKwh : settings.battery.pricePerKwh;
         var solarPrice = opts.pricePerKwp || settings.solar.pricePerKwp;
         var caps = [];
-        for (var c = 0; c < BATT_GRID.length; c++) caps.push(BATT_GRID[c]);
+        if (opts.caps && opts.caps.length) {
+            for (var q = 0; q < opts.caps.length; q++) caps.push(opts.caps[q]);
+        } else {
+            for (var c = 0; c < BATT_GRID.length; c++) caps.push(BATT_GRID[c]);
+        }
 
         var base = simulateScenario(data, sizeKwp, mergeOpts(opts, { mode: 'ongrid', settings: settings })).savings;
 

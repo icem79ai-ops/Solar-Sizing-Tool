@@ -336,7 +336,15 @@
             ' | ผลิตต่อวันต่อ kWp = ' + (res.psh * (1 - res.systemLosses)).toFixed(2) + ' kWh';
 
         renderRec(res, S);
-        renderSizingTable(res, period, basis);
+        var tableRes = { rows: res.rows, recommended: res.recommended };
+        if (res.recommended) {
+            var pct = Core.computeSizing(d, {
+                settings: S, mode: state.sizingMode, sizes: pctSteps(res.recommended.sizeKwp, 0.5),
+                battery: opts.battery
+            });
+            tableRes = { rows: pct.rows, recommended: res.recommended };
+        }
+        renderSizingTable(tableRes, period, basis);
         renderSizingChart(res);
 
         var extra = $('sizing-chart-extra');
@@ -363,17 +371,19 @@
         base.querySelector('.metric').classList.add('hl');
     }
 
-    // ตารางแสดงขนาดแนะนำอยู่กลาง: 5 ขนาดข้างบน + 5 ขนาดข้างล่าง (รวมแนะนำ = 11 แถว)
-    function sizingWindow(res) {
-        var rows = res.rows;
-        if (!res.recommended) return rows.slice(0, 11);
-        var idx = -1;
-        for (var i = 0; i < rows.length; i++) {
-            if (Math.abs(rows[i].sizeKwp - res.recommended.sizeKwp) < 0.001) { idx = i; break; }
+    // ขนาดรอบค่าแนะนำ: 5 ขั้นล่าง + แนะนำ + 5 ขั้นบน ขั้นละ 10% (50%–150%)
+    function pctSteps(base, minPct) {
+        var out = [];
+        for (var k = -5; k <= 5; k++) {
+            var v = base * (1 + 0.1 * k);
+            if (v > 0) out.push(Math.round(v * 100) / 100);
         }
-        if (idx < 0) return rows.slice(0, 11);
-        var lo = Math.max(0, idx - 5), hi = Math.min(rows.length, idx + 6);
-        return rows.slice(lo, hi);
+        return out;
+    }
+
+    // แถวที่แสดงในตาราง: คำนวณที่ขนาดรอบค่าแนะนำ (แถว 100% = ขนาดแนะนำ)
+    function sizingWindow(res) {
+        return res.rows;
     }
 
     function renderSizingTable(res, period, basis) {
@@ -429,7 +439,10 @@
         // sweep recommended solar size for best pairing
         var sizing = Core.computeSizing(d, { settings: S, mode: 'ongrid' });
         var size = sizing.recommended ? sizing.recommended.sizeKwp : 10;
-        state.lastBattRec = Core.recommendBattery(d, size, { settings: S });
+        var first = Core.recommendBattery(d, size, { settings: S });
+        // ตารางแบตเตอรี่: ความจุแนะนำอยู่กลาง ขั้น 10% (50%–150%)
+        var caps = first.bestCapacityKwh > 0 ? pctSteps(first.bestCapacityKwh, 0.5) : null;
+        state.lastBattRec = caps ? Core.recommendBattery(d, size, { settings: S, caps: caps }) : first;
         renderBattRec(state.lastBattRec);
         toast('คำนวณแบตแนะนำแล้ว (ขนาดโซลาร์ ' + fmtNum(size, 0) + ' kWp)');
     }
@@ -442,8 +455,11 @@
             return;
         }
         var dur = rec.candidates;
+        var best = rec.bestCapacityKwh;
         var rows = dur.map(function (c) {
-            return '<tr><td>' + fmtNum(c.capacityKwh, 0) + ' kWh</td><td>' + money(c.addonThb) + '</td><td>' +
+            var of = Math.round(c.capacityKwh / best * 100);
+            var cls = Math.abs(c.capacityKwh - best) < 0.001 ? ' class="rec"' : '';
+            return '<tr' + cls + '><td>' + fmtNum(c.capacityKwh, 1) + ' kWh (' + of + '%)</td><td>' + money(c.addonThb) + '</td><td>' +
                 years(c.batteryPaybackMonths) + '</td><td>' + fmtNum(c.wasteKwh, 0) + ' kWh</td></tr>';
         }).join('');
         box.hidden = false;
