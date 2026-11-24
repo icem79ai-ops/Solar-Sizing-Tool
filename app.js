@@ -363,15 +363,31 @@
         base.querySelector('.metric').classList.add('hl');
     }
 
+    // ตารางแสดงขนาดแนะนำอยู่กลาง: 5 ขนาดข้างบน + 5 ขนาดข้างล่าง (รวมแนะนำ = 11 แถว)
+    function sizingWindow(res) {
+        var rows = res.rows;
+        if (!res.recommended) return rows.slice(0, 11);
+        var idx = -1;
+        for (var i = 0; i < rows.length; i++) {
+            if (Math.abs(rows[i].sizeKwp - res.recommended.sizeKwp) < 0.001) { idx = i; break; }
+        }
+        if (idx < 0) return rows.slice(0, 11);
+        var lo = Math.max(0, idx - 5), hi = Math.min(rows.length, idx + 6);
+        return rows.slice(lo, hi);
+    }
+
     function renderSizingTable(res, period, basis) {
         var tbody = $('sizing-table').querySelector('tbody');
         tbody.innerHTML = '';
-        res.rows.forEach(function (r) {
+        var recKwp = res.recommended ? res.recommended.sizeKwp : 0;
+        sizingWindow(res).forEach(function (r) {
             var tr = document.createElement('tr');
-            if (res.recommended && Math.abs(res.recommended.sizeKwp - r.sizeKwp) < 0.001) tr.className = 'rec';
+            var isRec = res.recommended && Math.abs(recKwp - r.sizeKwp) < 0.001;
+            if (isRec) tr.className = 'rec';
             var mPerMo = r.savingsThb * 30 / period;
+            var ofRec = recKwp > 0 ? ' (' + Math.round(r.sizeKwp / recKwp * 100) + '%)' : '';
             tr.innerHTML =
-                '<td>' + fmtNum(r.sizeKwp, r.sizeKwp % 1 ? 1 : 0) + ' kWp</td>' +
+                '<td>' + fmtNum(r.sizeKwp, r.sizeKwp % 1 ? 1 : 0) + ' kWp' + ofRec + '</td>' +
                 '<td>' + fmtNum(r.genKwh, 0) + '</td>' +
                 '<td>' + fmtNum(r.selfUsedKwh, 0) + '</td>' +
                 '<td>' + fmtNum(r.wasteKwh, 0) + '</td>' +
