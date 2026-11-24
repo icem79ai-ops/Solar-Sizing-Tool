@@ -61,16 +61,26 @@ window.addEventListener('unhandledrejection', function (e) {
 
     <div class="card">
       <h2>✏️ สร้างโหลดโปรไฟล์เอง</h2>
-      <p class="hint">ไม่มีไฟล์จากมิเตอร์? วาดโหลดรายวันเองทีละ 15 นาที แล้วกด <b>ใช้โปรไฟล์นี้คำนวณ</b> ระบบจะคำนวณขนาดโซลาร์และแบตเตอรี่ตามขั้นตอนเดิมทุกอย่าง (โปรไฟล์นี้ถือว่าทุกวันเหมือนกัน 30 วัน)</p>
+      <p class="hint">ไม่มีไฟล์จากมิเตอร์? วาดโหลดรายวันทีละ 15 นาที เลือกอัตราค่าไฟ แล้วดูว่าค่าไฟเกิดจากอะไรบ้าง · บ้านอยู่อาศัยไม่มีค่าดีมานด์ · ทุกวันในเดือนถือว่าเหมือนกัน</p>
       <button type="button" id="btn-open-draw">เปิดตัววาดโหลด</button>
       <div id="draw-area" hidden>
         <div class="draw-row">
-          <label>เดือนที่ใช้หาค่าแดด (PSH)
-            <select id="draw-month"></select>
+          <label>อัตราค่าไฟ <select id="draw-rate"></select></label>
+          <label>รูปแบบ
+            <select id="draw-view">
+              <option value="same">ทุกเดือนเหมือนกัน</option>
+              <option value="per">แยกรายเดือน</option>
+            </select>
           </label>
+        </div>
+        <div class="month-tabs" id="draw-months"></div>
+        <div class="draw-row">
+          <button type="button" id="btn-copy-all">คัดลอกเดือนนี้ไปทุกเดือน</button>
+          <label>เดือนอ้างอิงค่าแดด (PSH) <select id="draw-month"></select></label>
           <button type="button" id="btn-use-draw">▶ ใช้โปรไฟล์นี้คำนวณ</button>
         </div>
         <div id="draw-pad"></div>
+        <div id="draw-bill"></div>
       </div>
     </div>
 

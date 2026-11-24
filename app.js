@@ -107,6 +107,9 @@
         } else if (!s.tariff.mode) {
             s.tariff.mode = 'progressive';
         }
+        if (state.drawnTariff && state.data && state.data.isDrawn) {
+            s.tariff = JSON.parse(JSON.stringify(state.drawnTariff));
+        }
         return s;
     }
     function selectedMonth() {
@@ -160,6 +163,7 @@
     }
 
     function parseFiles() {
+        state.drawnTariff = null;
         var res = Core.parseAmrFiles(files, XLSX);
         if (res.error) {
             state.data = null;
@@ -853,33 +857,129 @@
 
     // ---------------------------------------------------------------- wiring
     // ---------------------------------------------------- โหลดที่วาดเอง
-    var drawPad = null;
     var DRAW_MONTH_DEFAULT = 11;
+    var MONTH_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    var BILL_COLORS = ['#ff9f43', '#54a0ff', '#1dd1a1', '#ee5253', '#a55eea', '#8395a7'];
+    var drawPad = null;
+    var drawMonths = null;                 // 12 โปรไฟล์ (ละ 96 ช่วง)
+    var drawCur = DRAW_MONTH_DEFAULT - 1;  // เดือนที่กำลังแก้ (0–11)
+    var drawSame = true;                   // true = ทุกเดือนเหมือนกัน
+
+    function rateOption(k) {
+        return '<option value="' + k + '">' + DrawCalc.TARIFFS[k].label + '</option>';
+    }
 
     function openDrawPad() {
         var area = $('draw-area');
         var willOpen = area.hidden;
         area.hidden = !willOpen;
         if (!willOpen || drawPad) return;
-        var sel = $('draw-month');
-        sel.innerHTML = DrawCalc.THAI_MONTHS.map(function (name, i) {
-            return '<option value="' + (i + 1) + '"' + (i + 1 === DRAW_MONTH_DEFAULT ? ' selected' : '') + '>' + name + '</option>';
+        if (!drawMonths) {
+            drawMonths = [];
+            for (var m = 0; m < 12; m++) drawMonths.push(DrawCalc.hourlyToSlots(Array(24).fill(0.5)));
+        }
+        $('draw-rate').innerHTML =
+            '<optgroup label="บ้านอยู่อาศัย (ไม่มีค่าดีมานด์)">' + ['r111', 'r112', 'r121', 'r122'].map(rateOption).join('') + '</optgroup>' +
+            '<optgroup label="กิจการขนาดกลาง ไม่เกิน 33 kV (มีค่าดีมานด์)">' + ['d31', 'd31s', 'd32', 'd32s'].map(rateOption).join('') + '</optgroup>';
+        $('draw-rate').value = 'r111';
+        $('draw-view').value = drawSame ? 'same' : 'per';
+        $('draw-month').innerHTML = DrawCalc.THAI_MONTHS.map(function (n, i) {
+            return '<option value="' + (i + 1) + '"' + (i + 1 === DRAW_MONTH_DEFAULT ? ' selected' : '') + '>' + n + '</option>';
         }).join('');
-        drawPad = DrawPad.mount($('draw-pad'), {});
+        drawPad = DrawPad.mount($('draw-pad'), { initial: drawMonths[drawCur], onChange: onDrawChange });
+        buildMonthTabs();
+        renderBill();
+    }
+
+    function onDrawChange(slots) {
+        if (drawSame) {
+            for (var m = 0; m < 12; m++) drawMonths[m] = slots.slice();
+        } else {
+            drawMonths[drawCur] = slots.slice();
+        }
+        renderBill();
+    }
+
+    function buildMonthTabs() {
+        var box = $('draw-months');
+        box.innerHTML = MONTH_SHORT.map(function (n, i) {
+            return '<button type="button" data-m="' + i + '"' + (i === drawCur ? ' class="active"' : '') + '>' + n + '</button>';
+        }).join('');
+        Array.prototype.forEach.call(box.querySelectorAll('button'), function (b) {
+            b.addEventListener('click', function () { selectMonth(Number(b.dataset.m)); });
+        });
+    }
+
+    function selectMonth(m) {
+        drawCur = m;
+        drawPad.load(drawMonths[m]);
+        buildMonthTabs();
+        renderBill();
+    }
+
+    function copyMonthToAll() {
+        for (var m = 0; m < 12; m++) drawMonths[m] = drawMonths[drawCur].slice();
+        renderBill();
+        toast('คัดลอกโปรไฟล์เดือนนี้ไปทุกเดือนแล้ว');
+    }
+
+    function changeDrawView() {
+        drawSame = $('draw-view').value === 'same';
+        if (drawSame) copyMonthToAll();
+        drawPad.load(drawMonths[drawCur]);
+        renderBill();
+    }
+
+    function renderBill() {
+        var box = $('draw-bill');
+        if (!box || !drawMonths) return;
+        var key = $('draw-rate').value;
+        var t = DrawCalc.TARIFFS[key];
+        var yr = DrawCalc.annualBills(drawMonths, key);
+        var cur = yr.months[drawCur];
+        var total = cur.total;
+        var note = t.group === 'business'
+            ? '<p class="note">⚠️ อัตรานี้มี <b>ค่าดีมานด์</b> — หน้าวิเคราะห์ ขนาดโซลาร์ และประหยัด ยังไม่รวมค่าดีมานด์</p>'
+            : '<p class="note">บ้านอยู่อาศัยไม่มีค่าดีมานด์</p>';
+        var bar = cur.items.map(function (x, i) {
+            var pct = total > 0 ? x.amount / total * 100 : 0;
+            return '<div class="bill-seg" style="width:' + pct.toFixed(2) + '%;background:' +
+                BILL_COLORS[i % BILL_COLORS.length] + '" title="' + x.label + ' ' + fmtNum(x.amount, 2) + ' บาท"></div>';
+        }).join('');
+        var rows = cur.items.map(function (x, i) {
+            var pct = total > 0 ? x.amount / total * 100 : 0;
+            return '<tr><td><span class="dot" style="background:' + BILL_COLORS[i % BILL_COLORS.length] + '"></span>' +
+                x.label + '</td><td class="num">' + fmtNum(x.amount, 2) + '</td><td class="num">' + pct.toFixed(1) + '%</td></tr>';
+        }).join('');
+        var annual = yr.months.map(function (x, i) {
+            return '<tr' + (i === drawCur ? ' class="sel"' : '') + '><td>' + DrawCalc.THAI_MONTHS[i] +
+                '</td><td class="num">' + fmtNum(x.monthlyKwh, 0) + '</td><td class="num">' + fmtNum(x.total, 0) + '</td></tr>';
+        }).join('');
+        box.innerHTML =
+            '<h3>ค่าไฟเดือน' + DrawCalc.THAI_MONTHS[drawCur] + ' · ' + t.label + '</h3>' + note +
+            '<div class="bill-bar">' + bar + '</div>' +
+            '<table class="bill-table"><tr><th>รายการ</th><th>บาท</th><th>สัดส่วน</th></tr>' + rows +
+            '<tr class="sum"><td><b>รวม (รวม VAT)</b></td><td class="num"><b>' + fmtNum(total, 2) + '</b></td><td></td></tr></table>' +
+            '<h3>รวม 12 เดือน</h3>' +
+            '<table class="bill-table"><tr><th>เดือน</th><th>kWh</th><th>ค่าไฟ (บาท)</th></tr>' + annual +
+            '<tr class="sum"><td><b>รวมทั้งปี</b></td><td></td><td class="num"><b>' + fmtNum(yr.annualTotal, 0) + '</b></td></tr></table>';
     }
 
     function useDrawnProfile() {
-        if (!drawPad) return;
+        if (!drawPad || !drawMonths) return;
+        var key = $('draw-rate').value;
         var month = Number($('draw-month').value) || DRAW_MONTH_DEFAULT;
-        var data = DrawCalc.slotsToData(drawPad.getSlots(), { month: month, year: 2026, nDays: 30 });
+        var avg = DrawCalc.averageSlots(drawMonths);
+        var data = DrawCalc.slotsToData(avg, { month: month, year: 2026, nDays: 30 });
         if (!(data.totalKwh > 0)) { toast('ยังไม่มีโหลดในกราฟ — ลากวาดก่อน', true); return; }
+        state.drawnTariff = DrawCalc.toCoreTariff(key, state.settings.tariff);
         state.data = data;
         $('load-error').hidden = true;
         $('file-info').hidden = false;
         renderFileMeta();
         renderFileSummary();
         switchTab('analysis');
-        toast('ใช้โปรไฟล์ที่วาดเองแล้ว: ' + fmtNum(data.totalKwh, 1) + ' kWh/เดือน');
+        toast('ใช้โปรไฟล์ที่วาดแล้ว · ' + DrawCalc.TARIFFS[key].label);
     }
 
     function wire() {
@@ -917,6 +1017,9 @@
         $('btn-batt-recommend').addEventListener('click', runBattRecommend);
         $('btn-open-draw').addEventListener('click', openDrawPad);
         $('btn-use-draw').addEventListener('click', useDrawnProfile);
+        $('btn-copy-all').addEventListener('click', copyMonthToAll);
+        $('draw-rate').addEventListener('change', renderBill);
+        $('draw-view').addEventListener('change', changeDrawView);
 
         document.querySelectorAll('#sav-mode .opt').forEach(function (b) {
             b.addEventListener('click', function () {

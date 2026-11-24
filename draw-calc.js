@@ -140,7 +140,7 @@
             rows: rows, nDays: nDays, nIntervals: rows.length,
             totalKwh: total, peakKw: peak, intervalMinutes: 15,
             metadata: { month: month, month_th: THAI_MONTHS[month - 1], year: year + 543, label: 'โหลดที่วาดเอง' },
-            isPea: false, tariffHint: null,
+            isPea: false, tariffHint: null, isDrawn: true,
             label: opts.label || 'โหลดที่วาดเอง', monthForPsh: month
         };
     }
@@ -229,6 +229,27 @@
         return { months: out, annualTotal: sum };
     }
 
+    // อัตราของ กฟภ. ในรูปแบบที่เครื่องคำนวณหลัก (core.js) ใช้ได้
+    // หมายเหตุ: อัตราดีมานด์ยังไม่อยู่ในเครื่องหลัก ใช้แสดงผลเฉพาะหน้านี้
+    function toCoreTariff(key, base) {
+        var t = TARIFFS[key];
+        if (!t) throw new Error('ไม่รู้จักอัตรา: ' + key);
+        var b = JSON.parse(JSON.stringify(base));
+        if (t.kind === 'progressive') {
+            b.mode = 'progressive';
+            b.progTiers = t.tiers.map(function (r) { return [r[0], r[1]]; });
+            b.progServiceFee = t.serviceFee;
+        } else if (t.kind === 'tou') {
+            b.mode = 'tou';
+            b.onPeakRate = t.peakRate; b.offPeakRate = t.offRate; b.serviceFee = t.serviceFee;
+        } else {
+            b.mode = 'flat';
+            b.flatRate = t.energyRate; b.serviceFee = t.serviceFee;
+        }
+        b.preset = key;
+        return b;
+    }
+
     // โปรไฟล์เฉลี่ย 12 เดือน (ใช้ป้อนเครื่องคำนวณขนาดโซลาร์แบบเดิม)
     function averageSlots(monthlySlots) {
         var avg = Array(SLOTS).fill(0);
@@ -240,7 +261,7 @@
     }
 
     return {
-        TARIFFS: TARIFFS, billBreakdown: billBreakdown, annualBills: annualBills, averageSlots: averageSlots,
+        TARIFFS: TARIFFS, toCoreTariff: toCoreTariff, billBreakdown: billBreakdown, annualBills: annualBills, averageSlots: averageSlots,
         slotsToData: slotsToData, THAI_MONTHS: THAI_MONTHS,
         DEMAND_TARIFFS: DEMAND_TARIFFS, demandBill: demandBill,
         SLOTS: SLOTS, dailyKwh: dailyKwh, monthlyBill: monthlyBill,

@@ -22,7 +22,7 @@
     function mount(container, opts) {
         opts = opts || {};
         var onChange = opts.onChange || function () {};
-        var slots = DrawCalc.hourlyToSlots(Array(24).fill(0.5));
+        var slots = opts.initial ? DrawCalc.cleanSlots(opts.initial) : DrawCalc.hourlyToSlots(Array(24).fill(0.5));
         var past = [], future = [];
         var drawing = false, lastI = null;
 
@@ -145,9 +145,11 @@
         }
         document.addEventListener('keydown', onKey);
 
+        // โหลดค่าโดยไม่บันทึกประวัติและไม่เรียก onChange (ใช้ตอนสลับเดือน)
+        function load(arr) { slots = DrawCalc.cleanSlots(arr); render(); }
+
         render();
-        onChange(getSlots());
-        return { getSlots: getSlots, setSlots: setSlots, undo: undo, redo: redo };
+        return { getSlots: getSlots, setSlots: setSlots, load: load, undo: undo, redo: redo };
     }
 
     return { mount: mount };

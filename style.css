@@ -254,6 +254,26 @@ tbody tr:hover { background: rgba(255,255,255,.03); }
   color: var(--muted);
   border-top: 1px solid var(--line);
 }
-.app-footer p { margin: 0; }
-.app-footer strong { color: var(--txt); font-weight: 600; }
-.app-footer .footer-sub { margin-top: 4px; font-size: 11px; opacity: .75; }
+
+.app-footer p { margin: 0; }
+
+.app-footer strong { color: var(--txt); font-weight: 600; }
+
+.app-footer .footer-sub { margin-top: 4px; font-size: 11px; opacity: .75; }
+
+
+/* ---------- โหลดที่วาดเอง (หน้าแรก) ---------- */
+.draw-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
+.draw-row label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; }
+.month-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.month-tabs button { font-size: .8rem; padding: 4px 9px; border-radius: 6px; border: 1px solid #2a3344; background: #1e2736; color: inherit; cursor: pointer; }
+.month-tabs button.active { background: #ff9f43; color: #111; border-color: #ff9f43; }
+.bill-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin: 10px 0; background: #1e2736; }
+.bill-seg { height: 100%; min-width: 0; }
+.bill-table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: 12px; }
+.bill-table th, .bill-table td { border-bottom: 1px solid #2a3344; padding: 6px 8px; text-align: left; }
+.bill-table .num { text-align: right; white-space: nowrap; }
+.bill-table tr.sel td { background: #1e2736; }
+.bill-table tr.sum td { border-top: 2px solid #3a4560; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+#draw-bill h3 { margin: 14px 0 4px; font-size: 1rem; }
