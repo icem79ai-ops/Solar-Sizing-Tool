@@ -321,11 +321,17 @@
         return (p === undefined || p === null) ? 5.0 : p;
     }
 
+    // ขนาดโซลาร์ที่พิจารณา (kWp) — ครอบคลุมโหลดถึง 300 kW
+    var SIZE_GRID = [3, 5, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100,
+        110, 120, 140, 160, 180, 200, 225, 250, 275, 300];
+    // ขนาดแบตเตอรี่ที่พิจารณา (kWh)
+    var BATT_GRID = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140, 160, 200, 250, 300];
+
     function computeSizing(data, opts) {
         opts = opts || {};
         var settings = opts.settings || cloneSettings(DEFAULT_SETTINGS);
         var mode = opts.mode || 'ongrid';
-        var sizes = opts.sizes || [3, 5, 8, 10, 12, 15, 20, 25, 30];
+        var sizes = opts.sizes || SIZE_GRID;
         var tariff = opts.tariff || settings.tariff;
         var month = effectiveMonth(data, settings);
         var psh = pshForMonth(month, settings);
@@ -544,7 +550,7 @@
         var bprice = (opts.batteryPricePerKwh !== undefined) ? opts.batteryPricePerKwh : settings.battery.pricePerKwh;
         var solarPrice = opts.pricePerKwp || settings.solar.pricePerKwp;
         var caps = [];
-        for (var c = 5; c <= 100; c += 5) caps.push(c);
+        for (var c = 0; c < BATT_GRID.length; c++) caps.push(BATT_GRID[c]);
 
         var base = simulateScenario(data, sizeKwp, mergeOpts(opts, { mode: 'ongrid', settings: settings })).savings;
 
