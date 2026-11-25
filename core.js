@@ -32,7 +32,7 @@
 
     var DEFAULT_SETTINGS = {
         tariff: DEFAULT_TARIFF,
-        solar: { systemLosses: 0.25, pricePerKwp: 40000, inverterEfficiency: 0.96 },
+        solar: { systemLosses: 0.25, pricePerKwp: 40000, inverterEfficiency: 0.96, capMultiple: 1.0 },
         battery: { pricePerKwh: 9000, defaultCapacity: 10, defaultDod: 0.8, defaultEfficiency: 0.9 },
         location: { name: 'ตรัง', pshMonthly: DEFAULT_PSH_MONTHLY },
         monthOverride: null
@@ -417,7 +417,9 @@
         // recommendation — identical rule to Python
         var recommended = null;
         if (rows.length) {
-            var maxKwp = Math.max(2.0, Math.ceil(data.peakKw * 2.0));
+            // เพดานขนาดแนะนำ = เท่าของ Peak โหลด (ค่าตั้งได้ในหน้าตั้งค่า, ค่าเริ่มต้น 1 เท่า)
+            var capMult = (settings.solar && settings.solar.capMultiple > 0) ? settings.solar.capMultiple : 1.0;
+            var maxKwp = Math.max(2.0, Math.ceil(data.peakKw * capMult));
             var pool = rows.filter(function (r) { return r.sizeKwp <= maxKwp; });
             if (!pool.length) pool = rows;
             var good = pool.filter(function (r) {

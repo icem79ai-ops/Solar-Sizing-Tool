@@ -269,6 +269,10 @@ window.addEventListener('unhandledrejection', function (e) {
         <div><label class="lbl">Loss ระบบโซลาร์ (%)</label><input type="number" step="1" id="set-loss"></div>
         <div><label class="lbl">ราคาแบต (บาท/kWh)</label><input type="number" step="100" id="set-batt-price"></div>
       </div>
+      <div class="grid2">
+        <div><label class="lbl">เพดานโซลาร์แนะนำ (เท่าของ Peak โหลด)</label><input type="number" step="0.1" min="0.1" id="set-cap"></div>
+        <div></div>
+      </div>
       <p class="caption">ตัวเลข 36,064/36,269 บาท เป็นบิล TOU รายเดือนของไฟล์ทดสอบ มีผล ไม่ใช่การคาดเดา</p>
     </div>
     <div class="modal-foot">

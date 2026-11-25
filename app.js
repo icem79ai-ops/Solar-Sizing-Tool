@@ -762,6 +762,7 @@
         $('set-vat').value = s.tariff.vatRate * 100;
         $('set-solar-price').value = s.solar.pricePerKwp;
         $('set-loss').value = s.solar.systemLosses * 100;
+        $('set-cap').value = s.solar.capMultiple || 1;
         $('set-batt-price').value = s.battery.pricePerKwh;
         $('modal').hidden = false;
     }
@@ -800,6 +801,7 @@
         s.tariff.vatRate = num('set-vat') / 100;
         s.solar.pricePerKwp = num('set-solar-price') || 40000;
         s.solar.systemLosses = (num('set-loss') || 25) / 100;
+        s.solar.capMultiple = num('set-cap') > 0 ? num('set-cap') : 1;
         s.battery.pricePerKwh = num('set-batt-price') || 9000;
         saveSettings();
         $('modal').hidden = true;
