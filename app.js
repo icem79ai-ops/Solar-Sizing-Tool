@@ -358,12 +358,12 @@
         base.querySelector('.metric').classList.add('hl');
     }
 
-    // ขนาดรอบค่าแนะนำ: 5 ขั้นล่าง + แนะนำ + 5 ขั้นบน ขั้นละ 10% (50%–150%)
+    // ขนาดรอบค่าแนะนำ: 0%-100% โดย recommended ที่ 50% ขั้นละ 10%
     function pctSteps(base, minPct) {
         var out = [];
-        for (var k = -5; k <= 5; k++) {
-            var v = base * (1 + 0.1 * k);
-            if (v > 0) out.push(Math.round(v * 100) / 100);
+        for (var k = 0; k <= 10; k++) {
+            var v = base * (0.1 * k);
+            if (v > 0 || k === 0) out.push(Math.round(v * 100) / 100);
         }
         return out;
     }
