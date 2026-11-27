@@ -148,25 +148,8 @@ window.addEventListener('unhandledrejection', function (e) {
     </div>
 
     <div class="card">
-      <h2>🧪 ลองปรับขนาดระบบ (Trial)</h2>
-      <div class="grid2">
-        <div>
-          <label class="lbl">ขนาด Solar (kWp)</label>
-          <input type="range" id="trial-size" min="0.5" max="30" step="0.5" value="5">
-          <div id="trial-size-val" class="range-val">5 kWp</div>
-        </div>
-        <div id="trial-battery-wrap">
-          <label class="lbl">🔋 ความจุแบตเตอรี่ (kWh)</label>
-          <input type="range" id="trial-battery" min="0" max="100" step="5" value="10">
-          <div id="trial-battery-val" class="range-val">10 kWh</div>
-        </div>
-      </div>
-      <div class="grid4" id="trial-metrics"></div>
-    </div>
-
-    <div class="card">
       <h2>📋 ตารางเปรียบเทียบทุกขนาด</h2>
-      <p class="caption">📌 แถวแนะนำ (ไม่สามารถแก้ไข) · 🧪 แถว Trial (ลองปรับจากตัวควบคุมด้านบน)</p>
+      <p class="caption">📌 แนะนำอยู่กลาง (50%) · ช่วง 10%-100% ขั้นละ 10%</p>
       <div class="table-scroll">
         <table id="sizing-table">
           <thead><tr>

@@ -16,8 +16,6 @@
         sizingBattery: 10,
         savSize: 5,
         savBattery: 10,
-        trialSize: 5,
-        trialBattery: 10,
         lastBattRec: null
     };
 
@@ -321,10 +319,6 @@
         var res = Core.computeSizing(d, opts);
         var period = res.periodDays;
 
-        // ตั้ง max ของ trial-size ตามข้อมูล
-        var maxSize = Math.max(30, (res.recommended ? res.recommended.sizeKwp : 10) * 1.5);
-        $('trial-size').max = maxSize.toFixed(1);
-
         $('basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note +
             ' | ผลิตต่อวันต่อ kWp = ' + (res.psh * (1 - res.systemLosses)).toFixed(2) + ' kWh';
 
@@ -339,7 +333,6 @@
         }
         renderSizingTable(tableRes, period, basis);
         renderSizingChart(res);
-        renderTrial();
 
         var extra = $('sizing-chart-extra');
         if (state.sizingMode === 'hybrid') {
@@ -365,12 +358,12 @@
         base.querySelector('.metric').classList.add('hl');
     }
 
-    // ขนาดรอบค่าแนะนำ: 0%-100% โดย recommended ที่ 50% ขั้นละ 10%
+    // ขนาดรอบค่าแนะนำ: 10%-100% โดย recommended ที่ 50% ขั้นละ 10%
     function pctSteps(base, minPct) {
         var out = [];
-        for (var k = 0; k <= 10; k++) {
-            var v = base * (0.1 * k);
-            if (v > 0 || k === 0) out.push(Math.round(v * 100) / 100);
+        for (var k = 0; k <= 9; k++) {
+            var v = base * (0.1 + 0.1 * k);  // 0.1 + 0, 0.1 + 0.1, 0.1 + 0.2, ... = 10%, 20%, 30%, ..., 100%
+            if (v > 0) out.push(Math.round(v * 100) / 100);
         }
         return out;
     }
@@ -477,38 +470,6 @@
                 }
             }]
         }, 'เพิ่มประหยัดจากการติดแบตต่อความจุ (Hybrid)');
-    }
-
-    // ---------------------------------------------------------------- trial
-    function syncTrialControls() {
-        $('trial-battery-wrap').style.display = state.sizingMode === 'hybrid' ? '' : 'none';
-        $('trial-size').value = state.trialSize;
-        $('trial-size-val').textContent = state.trialSize + ' kWp';
-        $('trial-battery').value = state.trialBattery;
-        $('trial-battery-val').textContent = state.trialBattery + ' kWh';
-    }
-
-    function renderTrial() {
-        if (!state.data) return;
-        syncTrialControls();
-        var d = state.data;
-        var S = effectiveSettings();
-        var scen = Core.simulateScenario(d, state.trialSize, {
-            settings: S, mode: state.sizingMode,
-            battery: state.sizingMode === 'hybrid' ? {
-                capacityKwh: state.trialBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0.5
-            } : undefined
-        });
-
-        var bb = scen.billBefore.grandTotal, ba = scen.billAfter.grandTotal, sv = scen.savings;
-        var perMonth = sv * 30 / scen.periodDays;
-        var inv = scen.investmentThb || 0;
-
-        $('trial-metrics').innerHTML =
-            metric('⚡ ประหยัด/เดือน', money(perMonth), pct(sv / Math.max(bb, 1) * 100)) +
-            metric('💰 ลงทุน', money(inv), '@ ' + fmtNum(state.trialSize, 1) + ' kWp') +
-            metric('คืนทุน', years(paybackOf(scen, S)), '') +
-            metric('ใช้เอง', pct(scen.selfUsedKwh / scen.genKwh * 100), fmtNum(scen.wasteKwh, 0) + ' kWh ทิ้ง');
     }
 
     // ---------------------------------------------------------------- savings
@@ -1059,17 +1020,6 @@
         $('btn-copy-all').addEventListener('click', copyMonthToAll);
         $('draw-rate').addEventListener('change', onHomeRateChange);
         $('draw-view').addEventListener('change', changeDrawView);
-
-        $('trial-size').addEventListener('input', function (e) {
-            state.trialSize = parseFloat(e.target.value);
-            $('trial-size-val').textContent = state.trialSize + ' kWp';
-            renderTrial();
-        });
-        $('trial-battery').addEventListener('input', function (e) {
-            state.trialBattery = parseInt(e.target.value, 10);
-            $('trial-battery-val').textContent = state.trialBattery + ' kWh';
-            renderTrial();
-        });
 
         document.querySelectorAll('#sav-mode .opt').forEach(function (b) {
             b.addEventListener('click', function () {
