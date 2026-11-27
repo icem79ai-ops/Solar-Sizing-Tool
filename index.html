@@ -130,7 +130,14 @@ window.addEventListener('unhandledrejection', function (e) {
           <select id="sizing-month"></select>
           <p class="caption" id="sizing-profile-note"></p>
         </div>
-        <div id="sizing-battery-wrap">
+        <div>
+          <label class="lbl">☀️ ขนาดแผง (kWp)</label>
+          <input type="range" id="sizing-size" min="0.5" max="30" step="0.5" value="5">
+          <div id="sizing-size-val" class="range-val">5 kWp</div>
+        </div>
+      </div>
+      <div id="sizing-battery-wrap" class="grid2">
+        <div>
           <label class="lbl">🔋 ความจุแบตเตอรี่ (kWh)</label>
           <input type="range" id="sizing-battery" min="0" max="100" step="5" value="10">
           <div id="sizing-battery-val" class="range-val">10 kWh</div>

@@ -13,6 +13,7 @@
         tariffPreset: 'auto',
         sizingMode: 'ongrid',
         savMode: 'ongrid',
+        sizingSize: 5,
         sizingBattery: 10,
         savSize: 5,
         savBattery: 10,
@@ -300,6 +301,8 @@
             monthSel.appendChild(el);
         });
         $('sizing-profile-note').textContent = 'ใช้ค่า Peak Sun Hours เดือนที่เลือกสำหรับโปรไฟล์การผลิตโซลาร์';
+        $('sizing-size').value = state.sizingSize;
+        $('sizing-size-val').textContent = state.sizingSize + ' kWp';
         $('sizing-battery').value = state.sizingBattery;
         $('sizing-battery-val').textContent = state.sizingBattery + ' kWh';
     }
@@ -323,15 +326,12 @@
             ' | ผลิตต่อวันต่อ kWp = ' + (res.psh * (1 - res.systemLosses)).toFixed(2) + ' kWh';
 
         renderRec(res, S);
-        var tableRes = { rows: res.rows, recommended: res.recommended };
-        if (res.recommended) {
-            var pct = Core.computeSizing(d, {
-                settings: S, mode: state.sizingMode, sizes: pctSteps(res.recommended.sizeKwp, 0.5),
-                battery: opts.battery
-            });
-            tableRes = { rows: pct.rows, recommended: res.recommended };
-        }
-        renderSizingTable(tableRes, period, basis);
+        
+        // ตั้ง max ของ sizing-size ตามข้อมูล
+        var maxSize = Math.max(30, (res.recommended ? res.recommended.sizeKwp : 10) * 1.5);
+        $('sizing-size').max = maxSize.toFixed(1);
+        
+        updateSizingTable();
         renderSizingChart(res);
 
         var extra = $('sizing-chart-extra');
@@ -380,7 +380,9 @@
         sizingWindow(res).forEach(function (r) {
             var tr = document.createElement('tr');
             var isRec = res.recommended && Math.abs(recKwp - r.sizeKwp) < 0.001;
+            var isTrial = Math.abs(r.sizeKwp - state.sizingSize) < 0.001 && !isRec;
             if (isRec) tr.className = 'rec';
+            if (isTrial) tr.className = 'trial';
             var mPerMo = r.savingsThb * 30 / period;
             var ofRec = recKwp > 0 ? ' (' + Math.round(r.sizeKwp / recKwp * 100) + '%)' : '';
             tr.innerHTML =
@@ -393,9 +395,39 @@
                 '<td>' + years(r.paybackMonths) + '</td>' +
                 '<td>' + pct(r.selfConsumptionRatio * 100) + '</td>' +
                 '<td>' + money(r.investment) + '</td>' +
-                '<td>' + (tr.className === 'rec' ? '⭐ แนะนำ' : '') + '</td>';
+                '<td>' + (tr.className === 'rec' ? '⭐ แนะนำ' : (isTrial ? '🧪 ลอง' : '')) + '</td>';
             tbody.appendChild(tr);
         });
+    }
+
+    function updateSizingTable() {
+        if (!state.data) return;
+        var d = state.data;
+        var S = effectiveSettings();
+        var basis = basisDesc(d);
+        var opts = {
+            settings: S, mode: state.sizingMode,
+            battery: state.sizingMode === 'hybrid' ? {
+                capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0.5
+            } : undefined
+        };
+        var res = Core.computeSizing(d, opts);
+        var period = res.periodDays;
+        
+        // คำนวณตาราง โดยเพิ่ม sizing-size เข้าไปในรายการ
+        var sizes = pctSteps(res.recommended ? res.recommended.sizeKwp : 10, 0.5);
+        if (state.sizingSize > 0 && !sizes.some(function(s) { return Math.abs(s - state.sizingSize) < 0.001; })) {
+            sizes.push(state.sizingSize);
+            sizes.sort(function(a, b) { return a - b; });
+        }
+        
+        var pct = Core.computeSizing(d, {
+            settings: S, mode: state.sizingMode, sizes: sizes,
+            battery: opts.battery
+        });
+        
+        var tableRes = { rows: pct.rows, recommended: res.recommended };
+        renderSizingTable(tableRes, period, basis);
     }
 
     function renderSizingChart(res) {
@@ -1020,6 +1052,12 @@
         $('btn-copy-all').addEventListener('click', copyMonthToAll);
         $('draw-rate').addEventListener('change', onHomeRateChange);
         $('draw-view').addEventListener('change', changeDrawView);
+
+        $('sizing-size').addEventListener('input', function (e) {
+            state.sizingSize = parseFloat(e.target.value);
+            $('sizing-size-val').textContent = state.sizingSize + ' kWp';
+            renderSizingTable();
+        });
 
         document.querySelectorAll('#sav-mode .opt').forEach(function (b) {
             b.addEventListener('click', function () {

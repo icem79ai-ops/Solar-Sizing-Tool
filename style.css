@@ -200,6 +200,8 @@ thead th:first-child, tbody td:first-child { text-align: left; }
 tbody td { text-align: right; padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 tbody tr.rec { background: rgba(53,208,127,.08); }
 tbody tr.rec td:first-child { color: var(--acc); font-weight: 700; }
+tbody tr.trial { background: rgba(255,193,7,.08); }
+tbody tr.trial td:first-child { color: #ffc107; font-weight: 700; }
 tbody tr:hover { background: rgba(255,255,255,.03); }
 
 .chart-box { position: relative; width: 100%; }
