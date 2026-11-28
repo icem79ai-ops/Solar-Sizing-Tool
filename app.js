@@ -382,6 +382,13 @@
     function renderSizingTable(res, period, basis) {
         var tbody = $('sizing-table').querySelector('tbody');
         tbody.innerHTML = '';
+        
+        // Handle null/undefined res or res.rows
+        if (!res || !res.rows || res.rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10">รอการคำนวณ...</td></tr>';
+            return;
+        }
+        
         var recKwp = res.recommended ? res.recommended.sizeKwp : 0;
         sizingWindow(res).forEach(function (r) {
             var tr = document.createElement('tr');
