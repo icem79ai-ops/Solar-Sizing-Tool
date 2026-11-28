@@ -231,5 +231,28 @@ ok('PRICE: deye1 @8kWp ตรงจุด = 254,430', near(Core.solarCost(8, { p
         recSlow.bestAnywayCapacityKwh + ' kWh @ ' + (recSlow.bestAnywayPaybackMonths / 12).toFixed(1) + 'y');
 }
 
+// ---------- reserve (โซนสำรองไฟดับ — เก็บนิ่ง ไม่เข้าการคิดความคุ้มค่า) ----------
+{
+    const batFull = { capacityKwh: 10, dod: 0.8, efficiency: 0.9, initialSoc: 0 };
+    const rFull = Core.computeSizing(tou, { settings: S, mode: 'hybrid', sizes: [12], battery: batFull }).rows[0];
+    const rRes = Core.computeSizing(tou, { settings: S, mode: 'hybrid', sizes: [12],
+        battery: Object.assign({}, batFull, { reserveFrac: 0.5 }) }).rows[0];
+    const rEq = Core.computeSizing(tou, { settings: S, mode: 'hybrid', sizes: [12],
+        battery: { capacityKwh: 3.75, dod: 0.8, efficiency: 0.9, initialSoc: 0 } }).rows[0];
+    // 10 kWh @สำรอง 50% → วนใช้ 10×0.8 − 10×0.5 = 3 kWh ≡ แบต 3.75 kWh @DoD 0.8
+    ok('RESERVE: 10kWh@50% ≈ แบต 3.75kWh (วนใช้ 3 kWh เท่ากัน)', near(rRes.savingsThb, rEq.savingsThb, 1),
+        rRes.savingsThb.toFixed(1) + ' vs ' + rEq.savingsThb.toFixed(1));
+    ok('RESERVE: ประหยัดลดลงเมื่อสำรอง 50%', rRes.savingsThb < rFull.savingsThb,
+        rFull.savingsThb.toFixed(1) + ' → ' + rRes.savingsThb.toFixed(1));
+    ok('RESERVE: ลงทุนคงเดิม (ซื้อทั้งก้อน) คืนทุนแย่ลง',
+        near(rRes.investment, rFull.investment, 1e-6) && rRes.paybackMonths > rFull.paybackMonths,
+        rRes.paybackMonths.toFixed(0) + ' > ' + rFull.paybackMonths.toFixed(0) + ' mo');
+    const r80 = Core.computeSizing(tou, { settings: S, mode: 'hybrid', sizes: [12],
+        battery: Object.assign({}, batFull, { reserveFrac: 0.8 }) }).rows[0];
+    const rOn = Core.computeSizing(tou, { settings: S, mode: 'ongrid', sizes: [12] }).rows[0];
+    ok('RESERVE: สำรอง 80% → วนใช้ไม่ได้ → ประหยัดเท่า On-Grid เป๊ะ', near(r80.savingsThb, rOn.savingsThb, 0.01),
+        r80.savingsThb.toFixed(1) + ' vs ' + rOn.savingsThb.toFixed(1));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

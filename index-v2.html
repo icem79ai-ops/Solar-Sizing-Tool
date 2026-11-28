@@ -138,6 +138,18 @@ window.addEventListener('unhandledrejection', function (e) {
           <label class="lbl">🔋 ความจุแบต (kWh)</label>
           <input type="range" id="sizing-battery" min="0" max="100" step="5" value="10">
           <div id="sizing-battery-val" class="range-val">10 kWh</div>
+                    <label class="lbl">🛡️ สำรองไฟดับ (% ของความจุ — เก็บนิ่งไว้รอไฟดับ ไม่ใช้คิดความคุ้มค่า)</label>
+          <select id="sizing-reserve">
+            <option value="0" selected>0% (ไม่สำรอง)</option>
+            <option value="10">10%</option>
+            <option value="20">20%</option>
+            <option value="30">30%</option>
+            <option value="40">40%</option>
+            <option value="50">50%</option>
+            <option value="60">60%</option>
+            <option value="70">70%</option>
+            <option value="80">80% (วนใช้ไม่ได้เลย)</option>
+          </select>
           <button class="btn" id="btn-batt-recommend">✨ แนะนำความจุแบต</button>
         </div>
         <div class="strip-group">
@@ -228,6 +240,18 @@ window.addEventListener('unhandledrejection', function (e) {
         <label class="lbl">🔋 ความจุแบตเตอรี่ (kWh)</label>
         <input type="range" id="sav-battery" min="0" max="100" step="5" value="10">
         <div id="sav-battery-val" class="range-val">10 kWh</div>
+        <label class="lbl">🛡️ สำรองไฟดับ (% ของความจุ — เก็บนิ่งไว้รอไฟดับ ไม่ใช้คิดความคุ้มค่า)</label>
+        <select id="sav-reserve">
+          <option value="0" selected>0% (ไม่สำรอง)</option>
+          <option value="10">10%</option>
+          <option value="20">20%</option>
+          <option value="30">30%</option>
+          <option value="40">40%</option>
+          <option value="50">50%</option>
+          <option value="60">60%</option>
+          <option value="70">70%</option>
+          <option value="80">80% (วนใช้ไม่ได้เลย)</option>
+        </select>
       </div>
       <p class="caption" id="save-basis-caption"></p>
     </div>
@@ -357,6 +381,7 @@ window.addEventListener('unhandledrejection', function (e) {
         <tr><td>🔋 จ่ายโหลด (kWh)</td><td>ไฟจากแบตที่จ่ายให้ใช้ช่วงผลิตไม่พอ (เย็น/กลางคืน)</td></tr>
         <tr><td>SoC สูงสุด</td><td>ระดับชาร์จสูงสุดที่แบตไปถึง — ถ้าไม่เคยถึง 100% แปลว่าแบตใหญ่เกินจำเป็น</td></tr>
         <tr><td>DoD 80%</td><td>Depth of Discharge — เผื่ออายุแบต ใช้ได้จริงแค่ 80% (แบต 10 kWh → ใช้ 8 kWh)</td></tr>
+        <tr><td>🛡️ สำรองไฟดับ (%)</td><td>ส่วนของแบตที่ล็อกไว้รอไฟดับตลอด ไม่ถูกนำมาคิดความคุ้มค่า — คิดจากส่วนที่วนใช้เท่านั้น (เช่น แบต 10 kWh สำรอง 50% = เก็บนิ่ง 5 kWh วนใช้ 3 kWh)</td></tr>
       </table>
       <h3>☀️ พื้นฐาน</h3>
       <table>

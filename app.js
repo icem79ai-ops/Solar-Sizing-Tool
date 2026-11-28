@@ -17,6 +17,8 @@
         sizingBattery: 10,
         savSize: 5,
         savBattery: 10,
+        sizingReservePct: 0,
+        savReservePct: 0,
         lastBattRec: null,
         lastRecommended: null,
         lastPeriod: null
@@ -314,6 +316,7 @@
         $('sizing-size-val').textContent = state.sizingSize + ' kWp';
         $('sizing-battery').value = state.sizingBattery;
         $('sizing-battery-val').textContent = state.sizingBattery + ' kWh';
+        $('sizing-reserve').value = String(state.sizingReservePct || 0);
     }
 
     function renderSizing() {
@@ -325,7 +328,7 @@
         var opts = {
             settings: S, mode: state.sizingMode,
             battery: state.sizingMode === 'hybrid' ? {
-                capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
+                capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0, reserveFrac: (state.sizingReservePct || 0) / 100
             } : undefined
         };
         var res = Core.computeSizing(d, opts);
@@ -382,7 +385,12 @@
         var ch = r.batteryChargeKwh / p;      // kWh/วัน
         var dis = r.batteryDischargeKwh / p;  // kWh/วัน
         var soc = Math.round((r.batterySocMax || 0) * 100);
-        var head = '<b>🔋 สถานะแบต ' + cap + ' kWh (ชาร์จได้จริง ' + fmtNum(usable, 1) + ' kWh @ DoD 80%)</b>';
+        var resPct = state.sizingReservePct || 0;
+        var reserveKwh = cap * resPct / 100;
+        var cycleUsable = Math.max(0, usable - reserveKwh);
+        var head = (resPct > 0)
+            ? '<b>🔋 สถานะแบต ' + cap + ' kWh — 🛡️ สำรองไฟดับ ' + fmtNum(reserveKwh, 1) + ' kWh (' + resPct + '% ~จ่ายโหลดสำรอง 1kW ได้ ~' + fmtNum(reserveKwh * 0.9, 1) + ' ชม.) · วนใช้ ' + fmtNum(cycleUsable, 1) + ' kWh</b>'
+            : '<b>🔋 สถานะแบต ' + cap + ' kWh (ชาร์จได้จริง ' + fmtNum(usable, 1) + ' kWh @ DoD 80%)</b>';
         var verdict;
         if (ch < 0.05 && dis < 0.05) {
             verdict = '⚠️ <b>ไม่มีพลังงานเหลือเข้าแบตเลย</b> — โซลาร์ ' + fmtNum(r.sizeKwp, 0) +
@@ -483,7 +491,7 @@
         var S = effectiveSettings();
         var period = state.lastPeriod;
         var batOpts = state.sizingMode === 'hybrid' ? {
-            capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
+            capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0, reserveFrac: (state.sizingReservePct || 0) / 100
         } : undefined;
 
         // คำนวณตาราง โดยเพิ่ม sizing-size เข้าไปในรายการ (โหมดละเอียดทีละ 5 kWp อยู่ในปุ่ม "ดูละเอียดรายขนาด" ที่เปิดหน้าใหม่)
@@ -550,7 +558,7 @@
         var res = Core.computeSizing(d, {
             settings: S, mode: state.sizingMode, sizes: sizes,
             battery: state.sizingMode === 'hybrid' ? {
-                capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
+                capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0, reserveFrac: (state.sizingReservePct || 0) / 100
             } : undefined
         });
         var hybrid = state.sizingMode === 'hybrid';
@@ -667,6 +675,7 @@
         $('sav-size-val').textContent = state.savSize + ' kWp';
         $('sav-battery').value = state.savBattery;
         $('sav-battery-val').textContent = state.savBattery + ' kWh';
+        $('sav-reserve').value = String(state.savReservePct || 0);
     }
 
     function renderSavings() {
@@ -678,7 +687,7 @@
         var scen = Core.simulateScenario(d, state.savSize, {
             settings: S, mode: state.savMode,
             battery: state.savMode === 'hybrid' ? {
-                capacityKwh: state.savBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
+                capacityKwh: state.savBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0, reserveFrac: (state.savReservePct || 0) / 100
             } : undefined
         });
 
@@ -701,7 +710,7 @@
         }
         $('waste-caption').textContent = '☀️ โซลาร์ผลิต ' + fmtNum(scen.genKwh, 0) + ' kWh · ใช้เอง ' + fmtNum(scen.selfUsedKwh, 0) +
             ' kWh · เหลือทิ้ง/ส่งGrid ' + fmtNum(scen.wasteKwh, 0) + ' kWh — รวมทั้งระยะ ' + scen.periodDays + ' วัน (เฉลี่ย ~' +
-            fmtNum(scen.wasteKwh / scen.periodDays, 1) + ' kWh/วัน ไม่ใช่ต่อวัน) (ย้ำ: โมเดลไม่คิดรายได้จากการขายไฟ) · คืนทุน ≈ ' + years(paybackOf(scen, S));
+            fmtNum(scen.wasteKwh / scen.periodDays, 1) + ' kWh/วัน ไม่ใช่ต่อวัน) (ย้ำ: โมเดลไม่คิดรายได้จากการขายไฟ) · คืนทุน ≈ ' + years(paybackOf(scen, S)) + (state.savMode === 'hybrid' && state.savReservePct > 0 ? ' · 🛡️ สำรองไฟดับ ' + fmtNum(state.savBattery * state.savReservePct / 100, 1) + ' kWh (เก็บนิ่ง ไม่เข้าการคำนวณ)' : '');
 
         $('save-basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note +
             ' | 💰 ราคา: ' + priceText(S.solar);
@@ -1223,6 +1232,10 @@
             $('sizing-battery-val').textContent = state.sizingBattery + ' kWh';
             renderSizing();
         });
+        $('sizing-reserve').addEventListener('change', function (e) {
+            state.sizingReservePct = parseInt(e.target.value, 10) || 0;
+            renderSizing();
+        });
         $('sizing-month').addEventListener('change', function (e) {
             state.settings.monthOverride = e.target.value ? parseInt(e.target.value, 10) : null;
             saveSettings();
@@ -1262,6 +1275,10 @@
         $('sav-battery').addEventListener('input', function (e) {
             state.savBattery = parseInt(e.target.value, 10);
             $('sav-battery-val').textContent = state.savBattery + ' kWh';
+            renderSavings();
+        });
+        $('sav-reserve').addEventListener('change', function (e) {
+            state.savReservePct = parseInt(e.target.value, 10) || 0;
             renderSavings();
         });
 

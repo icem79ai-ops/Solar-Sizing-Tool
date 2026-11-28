@@ -141,6 +141,18 @@ window.addEventListener('unhandledrejection', function (e) {
           <label class="lbl">🔋 ความจุแบตเตอรี่ (kWh)</label>
           <input type="range" id="sizing-battery" min="0" max="100" step="5" value="10">
           <div id="sizing-battery-val" class="range-val">10 kWh</div>
+                    <label class="lbl">🛡️ สำรองไฟดับ (% ของความจุ — เก็บนิ่งไว้รอไฟดับ ไม่ใช้คิดความคุ้มค่า)</label>
+          <select id="sizing-reserve">
+            <option value="0" selected>0% (ไม่สำรอง)</option>
+            <option value="10">10%</option>
+            <option value="20">20%</option>
+            <option value="30">30%</option>
+            <option value="40">40%</option>
+            <option value="50">50%</option>
+            <option value="60">60%</option>
+            <option value="70">70%</option>
+            <option value="80">80% (วนใช้ไม่ได้เลย)</option>
+          </select>
           <button class="btn" id="btn-batt-recommend">✨ แนะนำความจุแบต</button>
           <p class="caption">DoD 80% · efficiency 90% · ราคา 7,650 บาท/kWh (เฉลี่ยจากแพ็ก Deye 16 kWh)</p>
         </div>
@@ -208,6 +220,18 @@ window.addEventListener('unhandledrejection', function (e) {
         <label class="lbl">🔋 ความจุแบตเตอรี่ (kWh)</label>
         <input type="range" id="sav-battery" min="0" max="100" step="5" value="10">
         <div id="sav-battery-val" class="range-val">10 kWh</div>
+        <label class="lbl">🛡️ สำรองไฟดับ (% ของความจุ — เก็บนิ่งไว้รอไฟดับ ไม่ใช้คิดความคุ้มค่า)</label>
+        <select id="sav-reserve">
+          <option value="0" selected>0% (ไม่สำรอง)</option>
+          <option value="10">10%</option>
+          <option value="20">20%</option>
+          <option value="30">30%</option>
+          <option value="40">40%</option>
+          <option value="50">50%</option>
+          <option value="60">60%</option>
+          <option value="70">70%</option>
+          <option value="80">80% (วนใช้ไม่ได้เลย)</option>
+        </select>
       </div>
       <p class="caption" id="save-basis-caption"></p>
     </div>

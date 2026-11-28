@@ -252,6 +252,9 @@
     function simulateBattery(solarKw, loadKw, params) {
         var n = loadKw.length;
         var usable = params.capacityKwh * params.dod;
+        var reserveKwh = (params.reserveFrac > 0 && params.capacityKwh > 0)
+            ? params.capacityKwh * params.reserveFrac : 0; // 🛡️ โซนสำรองไฟดับ (reserveFrac = สัดส่วน, 0.5 = 50%): เก็บนิ่งตลอด ไม่เข้าการวนใช้/คิดความคุ้มค่า
+        usable = Math.max(0, usable - reserveKwh);
         var hasBatt = usable > 1e-9; // แบต 0 kWh = ไม่มีแบต → เทียบเท่า On-Grid (กัน NaN จากการหารศูนย์)
         var curSoc = Math.min(Math.max(params.initialSoc || 0, 0), 1); // กัน initialSoc ขาด/NaN → เริ่มว่าง
         var soc = new Float64Array(n);
