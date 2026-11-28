@@ -157,8 +157,8 @@ window.addEventListener('unhandledrejection', function (e) {
 
     <div class="card">
       <h2>📋 ตารางเปรียบเทียบทุกขนาด</h2>
-      <p class="caption" id="table-mode-caption">📌 แนะนำอยู่กลาง (50%) · ช่วง 10%-100% ขั้นละ 10%</p>
-      <div class="btn-row"><button class="btn" id="btn-table-expand">🔍 ดูละเอียด: ทุกขนาดทีละ 5 kWp (5 → 2×ขนาดแนะนำ)</button></div>
+      <p class="caption">📌 แนะนำอยู่กลาง (50%) · ช่วง 10%-100% ขั้นละ 10% · อยากไล่ทีละ 5 kWp กดปุ่มด้านล่าง</p>
+      <div class="btn-row"><button class="btn" id="btn-table-expand">🔍 ดูละเอียดรายขนาด: ไล่ทีละ 5 kWp (5 → 2×ขนาดแนะนำ)</button></div>
       <div class="table-scroll">
         <table id="sizing-table">
           <thead><tr>
@@ -302,14 +302,31 @@ window.addEventListener('unhandledrejection', function (e) {
   </div>
 </div>
 
+<!-- ============================== Detail table modal ============================= -->
+<div id="detail-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:980px">
+    <div class="modal-head">
+      <h2 id="detail-modal-title">📋 ตารางละเอียดรายขนาด</h2>
+      <button class="icon-btn" id="btn-close-detail">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:72vh;overflow-y:auto">
+      <p class="caption" id="detail-modal-caption"></p>
+      <div id="detail-table-wrap"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn primary" id="btn-close-detail-2">ปิด</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast" hidden></div>
 
 <script src="lib/chart.umd.min.js?v=4"></script>
 <script src="lib/xlsx.full.min.js?v=4"></script>
-<script src="core.js?v=11"></script>
+<script src="core.js?v=12"></script>
 <script src="draw-calc.js?v=1"></script>
 <script src="draw-pad.js?v=1"></script>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];

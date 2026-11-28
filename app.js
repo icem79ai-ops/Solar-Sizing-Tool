@@ -19,8 +19,7 @@
         savBattery: 10,
         lastBattRec: null,
         lastRecommended: null,
-        lastPeriod: null,
-        tableExpanded: false
+        lastPeriod: null
     };
 
     // ------------------------------------------------------------------ utils
@@ -440,32 +439,12 @@
 
         var recKwp = res.recommended ? res.recommended.sizeKwp : 0;
         sizingWindow(res).forEach(function (r) {
-            var tr = document.createElement('tr');
             var isRec = res.recommended && Math.abs(recKwp - r.sizeKwp) < 0.001;
             var isTrial = Math.abs(r.sizeKwp - state.sizingSize) < 0.001 && !isRec;
+            var tr = document.createElement('tr');
             if (isRec) tr.className = 'rec';
             if (isTrial) tr.className = 'trial';
-            var mPerMo = r.savingsThb * 30 / period;
-            var ofRec = recKwp > 0 ? ' (' + Math.round(r.sizeKwp / recKwp * 100) + '%)' : '';
-            var cells =
-                '<td>' + fmtNum(r.sizeKwp, r.sizeKwp % 1 ? 1 : 0) + ' kWp' + ofRec + '</td>' +
-                '<td>' + fmtNum(r.genKwh, 0) + '</td>' +
-                '<td>' + fmtNum(r.selfUsedKwh, 0) + '</td>' +
-                '<td>' + fmtNum(r.wasteKwh, 0) + '</td>';
-            if (hybrid) {
-                cells +=
-                    '<td>' + fmtNum(r.batteryChargeKwh, 0) + '</td>' +
-                    '<td>' + fmtNum(r.batteryDischargeKwh, 0) + '</td>' +
-                    '<td>' + (r.batterySocMax > 0 ? Math.round(r.batterySocMax * 100) + '%' : '—') + '</td>';
-            }
-            cells +=
-                '<td>' + money(mPerMo) + '</td>' +
-                '<td>' + pct(r.savingsPct) + '</td>' +
-                '<td>' + years(r.paybackMonths) + '</td>' +
-                '<td>' + pct(r.selfConsumptionRatio * 100) + '</td>' +
-                '<td>' + money(r.investment) + '</td>' +
-                '<td>' + (tr.className === 'rec' ? '⭐ แนะนำ' : (isTrial ? '🧪 ลอง' : '')) + '</td>';
-            tr.innerHTML = cells;
+            tr.innerHTML = sizingRowCells(r, period, recKwp, isRec, isTrial, hybrid);
             tbody.appendChild(tr);
         });
 
@@ -507,21 +486,8 @@
             capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
         } : undefined;
 
-        // คำนวณตาราง: โหมดสั้น = 10%-100% ของแนะนำ · โหมดละเอียด = ทุก 5 kWp จาก 5 ถึง 2×แนะนำ
-        var recKwp = state.lastRecommended ? state.lastRecommended.sizeKwp : 10;
-        var sizes;
-        if (state.tableExpanded) {
-            var top = Math.ceil((recKwp * 2) / 5) * 5;
-            sizes = [];
-            for (var v = 5; v <= top; v += 5) sizes.push(v);
-        } else {
-            sizes = pctSteps(recKwp, 0.5);
-        }
-        // แถวขนาดแนะนำต้องอยู่เสมอ (เพื่อโชว์เครื่องหมาย ⭐) ถ้าไม่ตรงกลุ่มทีละ 5
-        if (state.lastRecommended && !sizes.some(function (s) { return Math.abs(s - recKwp) < 0.001; })) {
-            sizes.push(recKwp);
-            sizes.sort(function (a, b) { return a - b; });
-        }
+        // คำนวณตาราง โดยเพิ่ม sizing-size เข้าไปในรายการ (โหมดละเอียดทีละ 5 kWp อยู่ในปุ่ม "ดูละเอียดรายขนาด" ที่เปิดหน้าใหม่)
+        var sizes = pctSteps(state.lastRecommended ? state.lastRecommended.sizeKwp : 10, 0.5);
         if (state.sizingSize > 0 && !sizes.some(function(s) { return Math.abs(s - state.sizingSize) < 0.001; })) {
             sizes.push(state.sizingSize);
             sizes.sort(function(a, b) { return a - b; });
@@ -536,25 +502,72 @@
         renderSizingTable(tableRes, period, basisDesc(d));
     }
 
-    // ปุ่มสลับตาราง: สั้น (10%-100% ของแนะนำ) ↔ ละเอียด (ทุก 5 kWp ถึง 2×แนะนำ)
-    function toggleTableDetail() {
-        state.tableExpanded = !state.tableExpanded;
-        updateTableExpandUi();
-        updateSizingTable();
+    // เซลล์ของแถวตารางขนาด (ใช้ร่วมกันทั้งตารางหลักและหน้าละเอียด)
+    function sizingRowCells(r, period, recKwp, isRec, isTrial, hybrid) {
+        var mPerMo = r.savingsThb * 30 / period;
+        var ofRec = recKwp > 0 ? ' (' + Math.round(r.sizeKwp / recKwp * 100) + '%)' : '';
+        var cells =
+            '<td>' + fmtNum(r.sizeKwp, r.sizeKwp % 1 ? 1 : 0) + ' kWp' + ofRec + '</td>' +
+            '<td>' + fmtNum(r.genKwh, 0) + '</td>' +
+            '<td>' + fmtNum(r.selfUsedKwh, 0) + '</td>' +
+            '<td>' + fmtNum(r.wasteKwh, 0) + '</td>';
+        if (hybrid) {
+            cells +=
+                '<td>' + fmtNum(r.batteryChargeKwh, 0) + '</td>' +
+                '<td>' + fmtNum(r.batteryDischargeKwh, 0) + '</td>' +
+                '<td>' + (r.batterySocMax > 0 ? Math.round(r.batterySocMax * 100) + '%' : '—') + '</td>';
+        }
+        cells +=
+            '<td>' + money(mPerMo) + '</td>' +
+            '<td>' + pct(r.savingsPct) + '</td>' +
+            '<td>' + years(r.paybackMonths) + '</td>' +
+            '<td>' + pct(r.selfConsumptionRatio * 100) + '</td>' +
+            '<td>' + money(r.investment) + '</td>' +
+            '<td>' + (isRec ? '⭐ แนะนำ' : (isTrial ? '🧪 ลอง' : '')) + '</td>';
+        return cells;
     }
-    function updateTableExpandUi() {
-        var btn = $('btn-table-expand');
-        if (btn) {
-            btn.textContent = state.tableExpanded
-                ? '↩️ กลับไปตารางสั้น (10%–100% ของขนาดแนะนำ)'
-                : '🔍 ดูละเอียด: ทุกขนาดทีละ 5 kWp (5 → 2×ขนาดแนะนำ)';
+
+    // ปุ่ม "ดูละเอียดรายขนาด" → เปิดหน้าใหม่ (modal): ไล่คำนวณทีละ 5 kWp จาก 5 ถึง 2×ขนาดแนะนำ
+    // ตารางหลักคงเดิมทุกอย่าง
+    function openTableDetail() {
+        if (!state.data) { toast('กรุณาโหลดข้อมูลก่อน', true); return; }
+        var d = state.data;
+        var S = effectiveSettings();
+        var period = state.lastPeriod || 30;
+        var recKwp = state.lastRecommended ? state.lastRecommended.sizeKwp : 10;
+        var top = Math.ceil((recKwp * 2) / 5) * 5;
+        var sizes = [];
+        for (var v = 5; v <= top; v += 5) sizes.push(v);
+        // แถวขนาดแนะนำ (⭐) และขนาดที่ slider ชี้ (🧪) ต้องมีเสมอ แม้ไม่ลงตัว 5
+        if (!sizes.some(function (s) { return Math.abs(s - recKwp) < 0.001; })) {
+            sizes.push(recKwp);
+            sizes.sort(function (a, b) { return a - b; });
         }
-        var cap = $('table-mode-caption');
-        if (cap) {
-            cap.textContent = state.tableExpanded
-                ? '📌 โหมดละเอียด: ทุกขนาดทีละ 5 kWp จาก 5 ถึง 2×ขนาดแนะนำ (+ ขนาดแนะนำ ⭐ และขนาดที่ slider ชี้ 🧪)'
-                : '📌 แนะนำอยู่กลาง (50%) · ช่วง 10%-100% ขั้นละ 10%';
+        if (state.sizingSize > 0 && !sizes.some(function (s) { return Math.abs(s - state.sizingSize) < 0.001; })) {
+            sizes.push(state.sizingSize);
+            sizes.sort(function (a, b) { return a - b; });
         }
+        var res = Core.computeSizing(d, {
+            settings: S, mode: state.sizingMode, sizes: sizes,
+            battery: state.sizingMode === 'hybrid' ? {
+                capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
+            } : undefined
+        });
+        var hybrid = state.sizingMode === 'hybrid';
+        var rowsHtml = '';
+        res.rows.forEach(function (r) {
+            var isRec = state.lastRecommended && Math.abs(recKwp - r.sizeKwp) < 0.001;
+            var isTrial = Math.abs(r.sizeKwp - state.sizingSize) < 0.001 && !isRec;
+            rowsHtml += '<tr' + (isRec ? ' class="rec"' : (isTrial ? ' class="trial"' : '')) + '>' +
+                sizingRowCells(r, period, recKwp, isRec, isTrial, hybrid) + '</tr>';
+        });
+        $('detail-modal-title').textContent = '📋 ตารางละเอียด — ไล่ทีละ 5 kWp (5 → ' + top + ' kWp = 2×แนะนำ ' +
+            fmtNum(recKwp, 0) + ')';
+        $('detail-modal-caption').textContent = 'โหมด ' + (hybrid ? 'Hybrid (แบต ' + state.sizingBattery + ' kWh)' : 'On-Grid') +
+            ' · ค่า kWh เป็นรวมทั้งระยะ ' + period + ' วัน · ⭐ = ขนาดแนะนำ · 🧪 = ขนาดที่ slider ชี้ · (xx%) = เทียบขนาดแนะนำ';
+        $('detail-table-wrap').innerHTML = '<table><thead><tr>' +
+            (hybrid ? SIZING_COLS_HYBRID : SIZING_COLS_BASE) + '</tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+        $('detail-modal').hidden = false;
     }
 
     function renderSizingChart(res) {
@@ -1204,8 +1217,10 @@
             renderAnalysis();
         });
         $('btn-batt-recommend').addEventListener('click', runBattRecommend);
-        $('btn-table-expand').addEventListener('click', toggleTableDetail);
-        updateTableExpandUi();
+        $('btn-table-expand').addEventListener('click', openTableDetail);
+        $('btn-close-detail').addEventListener('click', function () { $('detail-modal').hidden = true; });
+        $('btn-close-detail-2').addEventListener('click', function () { $('detail-modal').hidden = true; });
+        $('detail-modal').addEventListener('click', function (e) { if (e.target === this) this.hidden = true; });
         $('btn-open-draw').addEventListener('click', openDrawPad);
         $('btn-use-draw').addEventListener('click', useDrawnProfile);
         $('btn-copy-all').addEventListener('click', copyMonthToAll);
