@@ -231,31 +231,5 @@ ok('PRICE: deye1 @8kWp ตรงจุด = 254,430', near(Core.solarCost(8, { p
         recSlow.bestAnywayCapacityKwh + ' kWh @ ' + (recSlow.bestAnywayPaybackMonths / 12).toFixed(1) + 'y');
 }
 
-// ---------- backup (จำลองไฟดับ) ----------
-{
-    const rowsB = [];
-    for (let d = 0; d < 7; d++) {
-        for (let i = 0; i < 96; i++) {
-            rowsB.push({ ts: new Date(2026, 3, d + 1), minute: i * 15, kw: 6, onPeak: i * 15 >= 540 && i * 15 < 1320 });
-        }
-    }
-    const flatB = { rows: rowsB, nDays: 7, nIntervals: rowsB.length, totalKwh: 1008, peakKw: 6,
-        intervalMinutes: 15, metadata: { month: 4 }, isPea: true, label: 'flat6kW' };
-    const batB = { capacityKwh: 10, dod: 0.8, efficiency: 0.9, initialSoc: 0 };
-    // สูตรแบตขั้นต่ำ: need / (DoD×eff) ปัดขึ้นเป็นกลุ่ม 5 kWh
-    const r1 = Core.backupEstimate(flatB, 5, { settings: S, battery: batB, outageStartMin: 0, backupLoadKw: 1, requiredHours: 1 });
-    ok('BK: แบตขั้นต่ำ 1kW×1ชม. = 5 kWh', r1.minCapacityKwh === 5, r1.minCapacityKwh + ' kWh');
-    const r2 = Core.backupEstimate(flatB, 5, { settings: S, battery: batB, outageStartMin: 0, backupLoadKw: 20, requiredHours: 4 });
-    ok('BK: แบตขั้นต่ำ 20kW×4ชม. = 115 kWh', r2.minCapacityKwh === 115, r2.minCapacityKwh + ' kWh');
-    ok('BK: ไฟดับเที่ยงคืน แบตว่าง → อยู่ได้ ~0 ชม.', r2.socAtOutage === 0 && r2.enduranceHours < 0.05,
-        r2.enduranceHours.toFixed(2) + ' ชม.');
-    // ไฟดับเที่ยง (12:00) — โซลาร์ 15kWp ชาร์จเต็มก่อนเที่ยง → แบตพร้อมจ่าย 7.2 kWh (10×0.8×0.9)
-    const r3 = Core.backupEstimate(flatB, 15, { settings: S, battery: batB, outageStartMin: 720, backupLoadKw: 5, requiredHours: 1 });
-    ok('BK: SoC ตอนเที่ยง = เต็ม (100% ของช่วงใช้งาน)', Math.abs(r3.socAtOutage - 1) < 1e-6, Math.round(r3.socAtOutage * 100) + '%');
-    ok('BK: ไฟพร้อมจ่าย 7.2 kWh', Math.abs(r3.energyAvailKwh - 7.2) < 1e-6, r3.energyAvailKwh.toFixed(2));
-    ok('BK: โหลดสำรอง 5kW อยู่รอด ≥ 1 ชม. (โซลาร์ช่วยจ่ายตอนบ่าย)', r3.ok === true && r3.enduranceHours >= 1,
-        r3.enduranceHours.toFixed(2) + ' ชม. · โซลาร์ช่วย ' + r3.solarKwh.toFixed(1) + ' kWh');
-}
-
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

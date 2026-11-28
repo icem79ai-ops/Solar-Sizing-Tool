@@ -229,26 +229,6 @@ window.addEventListener('unhandledrejection', function (e) {
       <p class="caption">🧭 วิธีอ่าน: กราฟโชว์เฉพาะ "ช่วงใช้งานจริง" ของแบต — ความจุถูกจำกัดด้วย DoD 80% แล้ว (แบต 10 kWh = เข้า-ออกจริง 8 kWh ที่เหลือเป็นเขตกันชนของแบต) · 0% บนกราฟ = พื้นล่างตาม DoD ไม่ใช่ไฟหมดโป๊ะ (แบตจริงยังเหลือเหนือพื้นนั้น) · 100% = เต็มที่ · กลางวันชาร์จขึ้น เย็น-กลางคืนคายลงตามโหลด</p>
       <p class="caption">🔋 แบตเสื่อมไหม? โมเดลไม่จำลองการเสื่อมรายปี แต่ใช้ DoD 80% เผื่ออายุแบตแล้ว (วนใช้เฉพาะช่วงใช้งาน ไม่แตะเขตกันชน) และเกณฑ์คืนทุน ≤ 10 ปี สั้นกว่าอายุแบตทั่วไป (10–15 ปี) จึงครอบคลุมการเสื่อมโดยประมาณ</p>
     </div>
-
-    <div class="card" id="bk-card" hidden>
-      <h2>🚨 จำลองไฟดับ — แบตสำรองอยู่ได้นานแค่ไหน?</h2>
-      <div class="grid3">
-        <div>
-          <label class="lbl">เวลาที่ไฟดับ</label>
-          <select id="bk-start"></select>
-        </div>
-        <div>
-          <label class="lbl">โหลดสำรองที่ต้องจ่าย (kW)</label>
-          <input type="number" id="bk-load" min="0.1" step="0.1" value="1">
-        </div>
-        <div>
-          <label class="lbl">ต้องอยู่รอด (ชม.)</label>
-          <select id="bk-hours"></select>
-        </div>
-      </div>
-      <div class="grid4" id="bk-result"></div>
-      <p class="caption">🧭 โหลดสำรอง = เฉพาะอุปกรณ์จำเป็นช่วงไฟดับ (ไฟส่องสว่าง พัดลม ตู้เย็น จุดชาร์จมือถือ) ไม่ใช่โหลดทั้งหน่วยงาน · แบตใช้ได้ตามช่วงใช้งาน DoD 80% · ถ้าไฟดับตอนกลางวันโซลาร์จะช่วยจ่ายตรงและชาร์จเพิ่มให้แบตด้วย</p>
-    </div>
   </section>
 </main>
 
@@ -347,7 +327,7 @@ window.addEventListener('unhandledrejection', function (e) {
 <script src="core.js?v=13"></script>
 <script src="draw-calc.js?v=1"></script>
 <script src="draw-pad.js?v=1"></script>
-<script src="app.js?v=15"></script>
+<script src="app.js?v=14"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];

@@ -725,39 +725,6 @@
                 y: { min: 0, max: 100, title: { display: true, text: '%' } }
             }, 'สถานะการชาร์จแบตเตอรี่ (SoC) ราย 15 นาที', false);
         }
-        renderBackup();
-    }
-
-    // การ์ดจำลองไฟดับ (Hybrid): แบตเหลือตอนไฟดับ + จ่ายโหลดสำรองได้นานแค่ไหน + แบตขั้นต่ำที่ต้องมี
-    function renderBackup() {
-        var card = $('bk-card');
-        if (state.savMode !== 'hybrid' || !state.data) { card.hidden = true; return; }
-        card.hidden = false;
-        var startMin = parseInt($('bk-start').value, 10) || 0;
-        var loadKw = parseFloat($('bk-load').value) || 1;
-        var reqH = parseInt($('bk-hours').value, 10) || 4;
-        var S = effectiveSettings();
-        var r = Core.backupEstimate(state.data, state.savSize, {
-            settings: S,
-            battery: { capacityKwh: state.savBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0 },
-            outageStartMin: startMin, backupLoadKw: loadKw, requiredHours: reqH
-        });
-        function hhmm(m) { var h = Math.floor(m / 60), mm = Math.round(m % 60); return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' : '') + mm; }
-        var verdict = r.ok
-            ? metric('✅ พอตามต้องการ', 'อยู่รอด ≥ ' + reqH + ' ชม.', 'ครบตามที่ตั้งไว้')
-            : metric('⚠️ ไม่พอตามต้องการ', 'ขาดอีก ~' + fmtNum(reqH - r.enduranceHours, 1) + ' ชม.',
-                r.enduranceHours < 0.1 ? 'แบตหมดตั้งแต่ตอนไฟดับ' : 'เพิ่มแบตหรือลดโหลดสำรอง');
-        var battNote = r.minCapacityKwh > state.savBattery
-            ? 'แบตที่ตั้งไว้ ' + state.savBattery + ' kWh ไม่พอ — เพิ่มอีก ' + (r.minCapacityKwh - state.savBattery) + ' kWh'
-            : 'แบตที่ตั้งไว้ ' + state.savBattery + ' kWh พอแล้ว';
-        $('bk-result').innerHTML =
-            metric('⚡ ไฟในแบตตอนไฟดับ', fmtNum(r.energyAvailKwh, 1) + ' kWh',
-                'SoC ' + Math.round(r.socAtOutage * 100) + '% ของช่วงใช้งาน') +
-            metric('⏱ จ่ายโหลดสำรองได้', fmtNum(r.enduranceHours, 1) + ' ชม.',
-                'จนถึง ' + hhmm(r.outageEndMin) + (r.solarKwh > 0.05 ? ' · โซลาร์ช่วย ' + fmtNum(r.solarKwh, 1) + ' kWh' : '')) +
-            verdict +
-            metric('📏 แบตขั้นต่ำที่ต้องมี', fmtNum(r.minCapacityKwh, 0) + ' kWh',
-                'สำหรับ ' + reqH + ' ชม. @โหลดสำรอง ' + loadKw + ' kW · ' + battNote);
     }
 
     function paybackOf(scen, S) {
@@ -1297,31 +1264,6 @@
             $('sav-battery-val').textContent = state.savBattery + ' kWh';
             renderSavings();
         });
-
-        // จำลองไฟดับ: เติมตัวเลือกเวลา/ระยะเวลา + ผูก event
-        var bkStart = $('bk-start');
-        if (bkStart && !bkStart.options.length) {
-            for (var bh = 0; bh < 24; bh++) {
-                var opt = document.createElement('option');
-                opt.value = bh * 60;
-                opt.textContent = (bh < 10 ? '0' : '') + bh + ':00';
-                if (bh === 18) opt.selected = true;
-                bkStart.appendChild(opt);
-            }
-        }
-        var bkHours = $('bk-hours');
-        if (bkHours && !bkHours.options.length) {
-            for (var hh2 = 1; hh2 <= 8; hh2++) {
-                var opt2 = document.createElement('option');
-                opt2.value = hh2;
-                opt2.textContent = hh2 + ' ชม.';
-                if (hh2 === 4) opt2.selected = true;
-                bkHours.appendChild(opt2);
-            }
-        }
-        $('bk-start').addEventListener('change', renderBackup);
-        $('bk-load').addEventListener('input', renderBackup);
-        $('bk-hours').addEventListener('change', renderBackup);
 
         $('btn-export-xlsx').addEventListener('click', exportXlsx);
         $('btn-export-csv').addEventListener('click', exportCsv);
