@@ -594,6 +594,68 @@
         };
     }
 
+    // --------------------------------------------------------- backup (ไฟดับ)
+    // จำลองไฟดับ: แบตเหลือเท่าไรตอนไฟดับ แล้วจ่ายโหลดสำรองได้นานแค่ไหน
+    // ใช้โปรไฟล์วันแทน (96 ช่วง) วนซ้ำ — โซลาร์ช่วยจ่ายตรง/ชาร์จเพิ่มได้ถ้าไฟดับตอนกลางวัน
+    function backupEstimate(data, sizeKwp, opts) {
+        opts = opts || {};
+        var settings = opts.settings || cloneSettings(DEFAULT_SETTINGS);
+        var battery = opts.battery || {
+            capacityKwh: settings.battery.defaultCapacity,
+            dod: settings.battery.defaultDod,
+            efficiency: settings.battery.defaultEfficiency,
+            initialSoc: 0
+        };
+        var outageStartMin = (opts.outageStartMin === undefined) ? 18 * 60 : opts.outageStartMin;
+        var backupLoadKw = (opts.backupLoadKw === undefined || !(opts.backupLoadKw > 0)) ? 1 : opts.backupLoadKw;
+        var requiredHours = opts.requiredHours > 0 ? opts.requiredHours : 0;
+
+        var scen = simulateScenario(data, sizeKwp, { settings: settings, mode: 'hybrid', battery: battery, tariff: opts.tariff });
+        var daily = scen.daily;
+        var usable = battery.capacityKwh * battery.dod;
+        var startSlot = Math.min(95, Math.max(0, Math.floor(outageStartMin / 15)));
+        var soc0 = daily.soc[startSlot];
+        var energy = soc0 * usable * battery.efficiency; // kWh ที่จ่ายออกได้ตอนไฟดับ
+
+        var minutes = 0, solarKwh = 0, dead = false;
+        for (var s = 0; s < 96; s++) { // สูงสุด 24 ชม. (โปรไฟล์วันแทนวนซ้ำ)
+            var idx = (startSlot + s) % 96;
+            var need = backupLoadKw * DT_HOURS;         // kWh ที่โหลดต้องใช้ช่วงนี้
+            var fromBatt = Math.min(need, energy);
+            var shortfall = need - fromBatt;
+            var pv = daily.solar[idx] * DT_HOURS;       // โซลาร์ช่วงนี้ (ไฟดับแต่แดดยังมี)
+            if (pv > 0 && shortfall > 0) {
+                var pvDirect = Math.min(pv, shortfall); // จ่ายโหลดตรงก่อน
+                shortfall -= pvDirect;
+                var room = usable - (energy / battery.efficiency); // ช่องว่างชาร์จ
+                var pvCharge = Math.min(pv - pvDirect, room);      // ที่เหลือเข้าแบต
+                energy += pvCharge;
+                solarKwh += pvDirect + pvCharge;
+            }
+            if (shortfall > 1e-9) {
+                minutes += (fromBatt / need) * 15;      // หมดกลางช่วง
+                dead = true;
+                break;
+            }
+            energy -= fromBatt;
+            minutes += 15;
+        }
+        var enduranceMin = Math.min(minutes, 24 * 60);
+        var res = {
+            socAtOutage: soc0, energyAvailKwh: soc0 * usable * battery.efficiency,
+            enduranceMin: enduranceMin, enduranceHours: enduranceMin / 60,
+            outageEndMin: (outageStartMin + Math.round(enduranceMin)) % (24 * 60),
+            solarKwh: solarKwh, batteryDeadBefore24h: dead,
+            minCapacityKwh: 0, requiredKwh: 0, ok: false
+        };
+        if (requiredHours > 0) {
+            res.requiredKwh = backupLoadKw * requiredHours;
+            res.minCapacityKwh = Math.ceil(res.requiredKwh / (battery.dod * battery.efficiency) / 5) * 5;
+            res.ok = enduranceMin >= requiredHours * 60 - 1e-6; // ผ่าน = รอดได้ตามระยะที่ต้องการ (ตายหลังจากนั้นไม่เป็นไร)
+        }
+        return res;
+    }
+
     // ------------------------------------------------------- battery recommend
     function recommendBattery(data, sizeKwp, opts) {
         opts = opts || {};
@@ -1105,7 +1167,7 @@
         progressiveCharge: progressiveCharge,
         simulateBattery: simulateBattery,
         computeSizing: computeSizing, simulateScenario: simulateScenario,
-        recommendBattery: recommendBattery,
+        recommendBattery: recommendBattery, backupEstimate: backupEstimate,
         parseAmrFiles: parseAmrFiles,
         analyzeData: analyzeData,
         buildRepDay: buildRepDay, referencePeriod: referencePeriod,
