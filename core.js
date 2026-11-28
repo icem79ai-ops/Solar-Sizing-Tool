@@ -253,7 +253,7 @@
         var n = loadKw.length;
         var usable = params.capacityKwh * params.dod;
         var hasBatt = usable > 1e-9; // แบต 0 kWh = ไม่มีแบต → เทียบเท่า On-Grid (กัน NaN จากการหารศูนย์)
-        var curSoc = Math.min(Math.max(params.initialSoc, 0), 1);
+        var curSoc = Math.min(Math.max(params.initialSoc || 0, 0), 1); // กัน initialSoc ขาด/NaN → เริ่มว่าง
         var soc = new Float64Array(n);
         var chargeArr = new Float64Array(n);
         var dischargeArr = new Float64Array(n);
@@ -414,7 +414,7 @@
                     capacityKwh: settings.battery.defaultCapacity,
                     dod: settings.battery.defaultDod,
                     efficiency: settings.battery.defaultEfficiency,
-                    initialSoc: 0.5
+                    initialSoc: 0
                 };
                 sim = simulateBattery(genSeries, loadSeries, batParams);
                 gridSeries = sim.gridImportKw;
@@ -528,7 +528,7 @@
             capacityKwh: settings.battery.defaultCapacity,
             dod: settings.battery.defaultDod,
             efficiency: settings.battery.defaultEfficiency,
-            initialSoc: 0.5
+            initialSoc: 0
         };
         if (mode === 'hybrid') {
             sim = simulateBattery(genSeries, loadSeries, batParams);
@@ -617,7 +617,7 @@
         var candidates = [];
         for (var i = 0; i < caps.length; i++) {
             var cap = caps[i];
-            var bat = { capacityKwh: cap, dod: dod, efficiency: eff, initialSoc: 0.5 };
+            var bat = { capacityKwh: cap, dod: dod, efficiency: eff, initialSoc: 0 };
             var scen = simulateScenario(data, sizeKwp, { mode: 'hybrid', tariff: tariff, battery: bat, settings: settings });
             var addon = scen.savings - base;
             var solarInvest = solarCost(sizeKwp, solarOptsB);

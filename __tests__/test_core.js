@@ -190,24 +190,31 @@ ok('PRICE: deye1 @8kWp ตรงจุด = 254,430', near(Core.solarCost(8, { p
     }
     const flat = { rows: rowsF, nDays: 7, nIntervals: rowsF.length, totalKwh: 1008, peakKw: 6,
         intervalMinutes: 15, metadata: { month: 4 }, isPea: true, label: 'flat6kW' };
-    const bat10 = { capacityKwh: 10, dod: 0.8, efficiency: 0.9, initialSoc: 0.5 };
+    // แบตเริ่มว่าง (initialSoc default 0 — steady-state ไม่มีไฟฟรี)
+    const bat10 = { capacityKwh: 10, dod: 0.8, efficiency: 0.9, initialSoc: 0 };
     const onF = Core.computeSizing(flat, { settings: S, mode: 'ongrid' });
     const hF = Core.computeSizing(flat, { settings: S, mode: 'hybrid', battery: bat10 });
     const r5h = hF.rows.find(r => r.sizeKwp === 5);
     const r5o = onF.rows.find(r => r.sizeKwp === 5);
     ok('BATT/FLAT: ไม่มีไฟเหลือ — แบตชาร์จ 0 kWh', r5h.batteryChargeKwh === 0, r5h.batteryChargeKwh.toFixed(3));
-    ok('BATT/FLAT: SoC ไม่เคยสูงกว่าเริ่มต้น (ไม่มีการชาร์จ) และถูกคายจนหมด',
-        r5h.batterySocMax < 0.5 && r5h.batterySocMax > 0, (r5h.batterySocMax * 100).toFixed(1) + '%');
-    ok('BATT/FLAT: savings hybrid ≈ ongrid (เหลือผลจากไฟค้างชาร์จแรก <50฿)',
-        Math.abs(r5h.savingsThb - r5o.savingsThb) < 50, (r5h.savingsThb - r5o.savingsThb).toFixed(1) + ' ฿');
+    ok('BATT/FLAT: SoC = 0% ตลอด (ไม่มีอะไรให้ชาร์จ)', r5h.batterySocMax === 0, (r5h.batterySocMax * 100).toFixed(1) + '%');
+    ok('BATT/FLAT: savings hybrid = ongrid เป๊ะ (แบตไม่สร้างประหยัด)',
+        Math.abs(r5h.savingsThb - r5o.savingsThb) < 0.01, (r5h.savingsThb - r5o.savingsThb).toFixed(3) + ' ฿');
     ok('BATT/FLAT: คืนทุนแย่กว่า ongrid (ค่าแบตเปล่าประโยชน์)', r5h.paybackMonths > r5o.paybackMonths,
         r5h.paybackMonths.toFixed(0) + ' vs ' + r5o.paybackMonths.toFixed(0) + ' mo');
+    // เคสที่ผู้ใช้รายงาน: เลื่อนแบตใหญ่ขึ้นเรื่อย ๆ ต้องไม่ทำให้ประหยัดขยับ (คืนทุนแย่ลงอย่างเดียว)
+    const h50 = Core.computeSizing(flat, { settings: S, mode: 'hybrid', sizes: [5],
+        battery: { capacityKwh: 50, dod: 0.8, efficiency: 0.9 } }).rows[0];
+    ok('BATT/FLAT: แบต 10→50 kWh ประหยัดยังเท่า ongrid เป๊ะ',
+        Math.abs(h50.savingsThb - r5o.savingsThb) < 0.01, (h50.savingsThb - r5o.savingsThb).toFixed(3) + ' ฿');
+    ok('BATT/FLAT: แบตยิ่งใหญ่ คืนทุนยิ่งช้า (เพดานเดียวกัน)', h50.paybackMonths > r5h.paybackMonths,
+        h50.paybackMonths.toFixed(0) + ' > ' + r5h.paybackMonths.toFixed(0) + ' mo');
     const hF15 = Core.computeSizing(flat, { settings: S, mode: 'hybrid', sizes: [15], battery: bat10 });
     ok('BATT/FLAT: โซลาร์ 15kWp เริ่มมีไฟเหลือ → แบตชาร์จได้', hF15.rows[0].batteryChargeKwh > 0,
         hF15.rows[0].batteryChargeKwh.toFixed(1) + ' kWh');
     const scenF = Core.simulateScenario(flat, 5, { settings: S, mode: 'hybrid', battery: bat10 });
-    ok('BATT/FLAT: simulateScenario รายงาน charge=0 discharge>0',
-        scenF.batteryChargeKwh === 0 && scenF.batteryDischargeKwh > 0,
+    ok('BATT/FLAT: simulateScenario รายงาน charge=0 discharge=0',
+        scenF.batteryChargeKwh === 0 && scenF.batteryDischargeKwh === 0,
         scenF.batteryChargeKwh + ' / ' + scenF.batteryDischargeKwh.toFixed(1));
 }
 

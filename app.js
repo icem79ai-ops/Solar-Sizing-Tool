@@ -325,7 +325,7 @@
         var opts = {
             settings: S, mode: state.sizingMode,
             battery: state.sizingMode === 'hybrid' ? {
-                capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0.5
+                capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
             } : undefined
         };
         var res = Core.computeSizing(d, opts);
@@ -503,7 +503,7 @@
         var S = effectiveSettings();
         var period = state.lastPeriod;
         var batOpts = state.sizingMode === 'hybrid' ? {
-            capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0.5
+            capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
         } : undefined;
 
         // คำนวณตาราง โดยเพิ่ม sizing-size เข้าไปในรายการ
@@ -617,7 +617,7 @@
         var scen = Core.simulateScenario(d, state.savSize, {
             settings: S, mode: state.savMode,
             battery: state.savMode === 'hybrid' ? {
-                capacityKwh: state.savBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0.5
+                capacityKwh: state.savBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
             } : undefined
         });
 

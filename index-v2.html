@@ -244,7 +244,7 @@ window.addEventListener('unhandledrejection', function (e) {
     <div class="card" id="soc-card">
       <h2>🔋 สถานะการชาร์จแบต (SoC)</h2>
       <div class="chart-box" style="height:240px"><canvas id="soc-chart"></canvas></div>
-      <p class="caption">🧭 วิธีอ่าน: SoC เริ่มต้น 50% — ช่วงกลางวันโซลาร์ผลิตเกินโหลดแบตจะชาร์จขึ้น 100% (เต็ม) ช่วงเย็น-กลางคืนแบตคายไฟให้โหลด ทำให้กริดจ่ายน้อยลง จนกว่าจะหมด (0%)</p>
+      <p class="caption">🧭 วิธีอ่าน: แบตเริ่มต้นว่าง (0% — คำนวณแบบ steady-state ไม่มีไฟฟรี) กลางวันโซลาร์ผลิตเกินโหลดแบตจะชาร์จขึ้น 100% (เต็ม) ช่วงเย็น-กลางคืนแบตคายไฟให้โหลด ทำให้กริดจ่ายน้อยลง จนกว่าจะหมด</p>
     </div>
   </section>
 </main>
@@ -375,10 +375,10 @@ window.addEventListener('unhandledrejection', function (e) {
 
 <script src="lib/chart.umd.min.js?v=4"></script>
 <script src="lib/xlsx.full.min.js?v=4"></script>
-<script src="core.js?v=9"></script>
+<script src="core.js?v=10"></script>
 <script src="draw-calc.js?v=1"></script>
 <script src="draw-pad.js?v=1"></script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];
