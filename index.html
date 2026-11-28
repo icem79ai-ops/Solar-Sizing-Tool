@@ -93,6 +93,17 @@ window.addEventListener('unhandledrejection', function (e) {
         <h2>🧾 สรุปข้อมูล</h2>
         <div class="grid4" id="file-summary"></div>
       </div>
+
+      <div class="card">
+        <h2>🗓️ วันเปิดใช้ไฟ (กำหนดตัวเลขรายเดือน)</h2>
+        <label class="lbl">รูปแบบวันเปิดใช้ไฟของลูกค้า</label>
+        <select id="work-days">
+          <option value="7" selected>เปิดทุกวัน / ไฟล์ครบทุกวัน (ค่าเริ่มต้น)</option>
+          <option value="5">เปิด จ.-ศ. (5 วัน/สัปดาห์ — ปิดเสาร์-อาทิตย์)</option>
+          <option value="6">เปิด 6 วัน/สัปดาห์ (ปิดวันอาทิตย์)</option>
+        </select>
+        <p class="caption" id="work-days-note">โหลดไฟล์ก่อนเพื่อดูผลของการตั้งค่านี้</p>
+      </div>
     </div>
   </section>
 
@@ -352,10 +363,10 @@ window.addEventListener('unhandledrejection', function (e) {
 
 <script src="lib/chart.umd.min.js?v=4"></script>
 <script src="lib/xlsx.full.min.js?v=4"></script>
-<script src="core.js?v=13"></script>
+<script src="core.js?v=18"></script>
 <script src="draw-calc.js?v=1"></script>
 <script src="draw-pad.js?v=1"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=18"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];

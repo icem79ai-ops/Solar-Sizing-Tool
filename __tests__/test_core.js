@@ -27,7 +27,7 @@ const pea = [
 const tou = Core.parseAmrFiles(pea, XLSX);
 ok('TOU: no parse error', !tou.error, tou.error);
 if (!tou.error) {
-    ok('TOU: nDays=23', tou.nDays === 23, tou.nDays);
+    ok('TOU: nDays=18 (แก้แถว 24:00 ไม่ข้ามวัน — ไม่มีวันผี)', tou.nDays === 18, tou.nDays);
     ok('TOU: total ~8167 kWh', near(tou.totalKwh, 8167, 5), tou.totalKwh.toFixed(1));
     ok('TOU: peak ~48.5 kW', near(tou.peakKw, 48.5, 0.5), tou.peakKw.toFixed(2));
     ok('TOU: metadata month=4', tou.metadata.month === 4, tou.metadata.month_th);
@@ -38,24 +38,24 @@ if (!tou.error) {
 
     // sizing (on-grid): bill_before ~36,064, rec 12 kWp
     const sizeTou = Core.computeSizing(tou, { settings: S, mode: 'ongrid' });
-    ok('TOU: scheduling bill ~36,064', near(sizeTou.rows[0].billBefore, 36064, 15), sizeTou.rows[0].billBefore.toFixed(2));
-    ok('TOU: rec=12 kWp', sizeTou.recommended && Math.abs(sizeTou.recommended.sizeKwp - 12) < 0.01,
+    ok('TOU: scheduling bill ~36,250 (ระยะ 18 วันทำการ)', near(sizeTou.rows[0].billBefore, 36250, 20), sizeTou.rows[0].billBefore.toFixed(2));
+    ok('TOU: rec=15 kWp (หน่วยคืนทุนจริง — เกณฑ์ 10 ปีใช้ได้จริง)', sizeTou.recommended && Math.abs(sizeTou.recommended.sizeKwp - 15) < 0.01,
         sizeTou.recommended && sizeTou.recommended.sizeKwp);
     const r12 = sizeTou.rows.find(r => Math.abs(r.sizeKwp - 12) < 0.01);
-    ok('TOU: ongrid 12kWp savings ~5,556', near(r12.savingsThb, 5556, 10), r12.savingsThb.toFixed(1));
+    ok('TOU: ongrid 12kWp savings ~4,971 (ระยะ 18 วันทำการ)', near(r12.savingsThb, 4971, 12), r12.savingsThb.toFixed(1));
     const r10 = sizeTou.rows.find(r => Math.abs(r.sizeKwp - 10) < 0.01);
-    ok('TOU: ongrid 10kWp savings ~5,094', near(r10.savingsThb, 5094, 10), r10.savingsThb.toFixed(1));
+    ok('TOU: ongrid 10kWp savings ~4,503 (ระยะ 18 วันทำการ)', near(r10.savingsThb, 4503, 12), r10.savingsThb.toFixed(1));
 
     // hybrid scenario 10kWp + 15kWh -> 6,109
     const bat = { capacityKwh: 15, dod: 0.8, efficiency: 0.9, initialSoc: 0.5 };
     const scen = Core.simulateScenario(tou, 10, { settings: S, mode: 'hybrid', battery: bat });
-    ok('TOU: hybrid 10kWp+15kWh savings ~6,109', near(scen.savings, 6109, 10), scen.savings.toFixed(1));
+    ok('TOU: hybrid 10kWp+15kWh savings ~4,836 (ระยะ 18 วันทำการ)', near(scen.savings, 4836, 12), scen.savings.toFixed(1));
     // daily grid at 00:00 low (battery covers), battery_discharge present
     ok('TOU: hybrid daily has battery traces', !!scen.daily.batteryDischarge && !!scen.daily.batteryCharge);
 
     // battery recommendation for 12 kWp -> 15 kWh
     const rec = Core.recommendBattery(tou, 12, { settings: S });
-    ok('TOU: recommend battery 15 kWh (12kWp)', rec.bestCapacityKwh === 15, rec.bestCapacityKwh + ' kWh');
+    ok('TOU: recommend battery 10 kWh (12kWp — หน่วยเดือนจริง)', rec.bestCapacityKwh === 10, rec.bestCapacityKwh + ' kWh');
 
     // ---- tariff modes (analysis bill) ----
     const tProg = Core.cloneSettings(S); tProg.tariff.mode = 'progressive';
@@ -252,6 +252,19 @@ ok('PRICE: deye1 @8kWp ตรงจุด = 254,430', near(Core.solarCost(8, { p
     const rOn = Core.computeSizing(tou, { settings: S, mode: 'ongrid', sizes: [12] }).rows[0];
     ok('RESERVE: สำรอง 80% → วนใช้ไม่ได้ → ประหยัดเท่า On-Grid เป๊ะ', near(r80.savingsThb, rOn.savingsThb, 0.01),
         r80.savingsThb.toFixed(1) + ' vs ' + rOn.savingsThb.toFixed(1));
+}
+
+// ---------- day-count fix: แถว 24:00 ไม่ข้ามวัน (ไม่มีวันผี) + คืนทุนเป็นเดือนจริง ----------
+{
+    const per = {};
+    tou.rows.forEach(r => { const k = r.ts.getFullYear() + '-' + r.ts.getMonth() + '-' + r.ts.getDate(); per[k] = (per[k] || 0) + 1; });
+    const counts = Object.values(per);
+    ok('DAYFIX: จำนวนวันที่มีข้อมูล = 18', counts.length === 18, counts.length);
+    ok('DAYFIX: ไม่มีวันผี (ทุกวันที่มีข้อมูล ≥ 90 แถว)', Math.min(...counts) >= 90, Math.min(...counts));
+    ok('DAYFIX: แถว 24:00 อยู่วันเดิม (minute=1440)', tou.rows.some(r => r.minute === 1440), 'minute=1440 present');
+    const sizeTou2 = Core.computeSizing(tou, { settings: S, mode: 'ongrid', sizes: [12] });
+    ok('DAYFIX: คืนทุน 12kWp = เดือนจริง (~58 เดือน, ไม่ผูกกับความยาวไฟล์)',
+        near(sizeTou2.rows[0].paybackMonths, 480000 / (4971.1 * 30 / 18), 2), sizeTou2.rows[0].paybackMonths.toFixed(1) + ' mo');
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

@@ -19,6 +19,7 @@
         savBattery: 10,
         sizingReservePct: 0,
         savReservePct: 0,
+        workDaysPerWeek: 7,
         lastBattRec: null,
         lastRecommended: null,
         lastPeriod: null
@@ -190,6 +191,7 @@
         $('file-info').hidden = false;
         renderFileMeta();
         renderFileSummary();
+        renderWorkDaysNote();
         switchTab('analysis');
         toast('โหลดข้อมูลสำเร็จ: ' + res.nDays + ' วัน · ' + fmtNum(res.totalKwh, 1) + ' kWh');
     }
@@ -234,10 +236,12 @@
         var d = state.data;
         var S = effectiveSettings();
         var basis = basisDesc(d);
-        var ana = Core.analyzeData(d, S.tariff, d.nDays);
+        var wd = state.workDaysPerWeek || 7;
+        var nDaysEff = Core.referencePeriod(d.nDays) * 7 / wd;
+        var ana = Core.analyzeData(d, S.tariff, nDaysEff);
         var bill = ana.bill.grandTotal;
         var monthlyBill = ana.bill.monthlyGrandTotal !== undefined ? ana.bill.monthlyGrandTotal
-            : (d.nDays <= 1 ? bill * 30 : bill * 30 / d.nDays);
+            : bill * 30 / nDaysEff;
 
         renderTariffSelect(S);
 
@@ -245,9 +249,10 @@
         $('bill-metrics').innerHTML =
             metric('ค่าไฟ (ระยะ ' + basis.period + ' วัน)', money(bill), tariffText(S.tariff)) +
             metric('ค่าไฟ/เดือน (โดยประมาณ)', money(monthlyBill), basis.perDay ? '×30' : '×30/' + d.nDays) +
-            metric('พลังงาน/เดือน', fmtNum(d.totalKwh * 30 / Math.max(1, d.nDays), 0) + ' kWh', 'PSH เดือนนี้ ≈ ' + prop);
+            metric('พลังงาน/เดือน', fmtNum(d.totalKwh * 30 / nDaysEff, 0) + ' kWh', 'PSH เดือนนี้ ≈ ' + prop);
         $('bill-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note +
-            (S.tariff.mode === 'progressive' ? ' | ขั้นอัตราคิดบนหน่วยต่อเดือน แล้วเทียบกลับเป็นระยะไฟล์' : '');
+            (S.tariff.mode === 'progressive' ? ' | ขั้นอัตราคิดบนหน่วยต่อเดือน แล้วเทียบกลับเป็นระยะไฟล์' : '') +
+            ' · 🗓️ เดือน = ×' + monthFactor().toFixed(2) + ' (เปิด ' + wd + ' วัน/สัปดาห์)';
 
         var mode = S.tariff.mode;
         var head = '';
@@ -309,6 +314,23 @@
         }
     }
 
+    // ตัวคูณ "ระยะไฟล์ → เดือน": 30 × (วันเปิด/7) ÷ จำนวนวันข้อมูลในไฟล์
+    function monthFactor() {
+        var wd = state.workDaysPerWeek || 7;
+        var n = state.data ? Core.referencePeriod(state.data.nDays) : 30;
+        return 30 * (wd / 7) / n;
+    }
+    function renderWorkDaysNote() {
+        var el = $('work-days-note');
+        if (!el) return;
+        if (!state.data) { el.textContent = 'โหลดไฟล์ก่อนเพื่อดูผลของการตั้งค่านี้'; return; }
+        var wd = state.workDaysPerWeek || 7;
+        var mf = monthFactor();
+        el.textContent = 'ไฟล์นี้มีข้อมูล ' + state.data.nDays + ' วัน (วันที่มีการใช้ไฟจริง) · ตัวคูณเป็นเดือน = ×' + mf.toFixed(2) +
+            (wd === 7 ? ' (เปิดทุกวัน — ขยายตามจำนวนวันข้อมูล)' : ' (เปิด ' + wd + ' วัน/สัปดาห์ — เดือนทั่วไปมี ~' + Math.round(30 * wd / 7 * 10) / 10 + ' วันเปิด)') +
+            ' · ตัวเลข "ประหยัด/เดือน" ทุกแท็บใช้ตัวคูณนี้';
+    }
+
     function syncSizingControls() {
         document.querySelectorAll('#sizing-mode .opt').forEach(function (b) {
             b.classList.toggle('active', b.dataset.mode === state.sizingMode);
@@ -341,7 +363,7 @@
         var S = effectiveSettings();
         var basis = basisDesc(d);
         var opts = {
-            settings: S, mode: state.sizingMode,
+            settings: S, mode: state.sizingMode, workDaysPerWeek: state.workDaysPerWeek || 7,
             battery: state.sizingMode === 'hybrid' ? {
                 capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0, reserveFrac: (state.sizingReservePct || 0) / 100
             } : undefined
@@ -351,7 +373,8 @@
 
         $('basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note +
             ' | ผลิตต่อวันต่อ kWp = ' + (res.psh * (1 - res.systemLosses)).toFixed(2) + ' kWh' +
-            ' | 💰 ราคา: ' + priceText(S.solar);
+            ' | 💰 ราคา: ' + priceText(S.solar) +
+            ' | 🗓️ เดือน = ×' + monthFactor().toFixed(2) + ' (เปิด ' + (state.workDaysPerWeek || 7) + ' วัน/สัปดาห์)';
 
         renderRec(res, S);
         renderBattStatus(res, S);
@@ -380,7 +403,7 @@
     function renderRec(res, S) {
         var r = res.recommended;
         var p = res.periodDays;
-        var saveMonthly = r ? r.savingsThb * 30 / p : 0;
+        var saveMonthly = r ? r.savingsThb * monthFactor() : 0;
         var base = document.getElementById('rec-metrics');
         if (!r) { base.innerHTML = '<div class="metric"><div class="k">ไม่พบขนาดที่เหมาะสม</div></div>'; return; }
         base.innerHTML =
@@ -467,7 +490,7 @@
             var tr = document.createElement('tr');
             if (isRec) tr.className = 'rec';
             if (isTrial) tr.className = 'trial';
-            tr.innerHTML = sizingRowCells(r, period, recKwp, isRec, isTrial, hybrid);
+            tr.innerHTML = sizingRowCells(r, monthFactor(), recKwp, isRec, isTrial, hybrid);
             tbody.appendChild(tr);
         });
 
@@ -483,7 +506,7 @@
                     mode: state.sizingMode, period: per,
                     trial: tRow ? {
                         sizeKwp: tRow.sizeKwp,
-                        savingsPerMo: tRow.savingsThb * 30 / per,
+                        savingsPerMo: tRow.savingsThb * monthFactor(),
                         paybackMonths: tRow.paybackMonths,
                         investment: tRow.investment,
                         chargePerDay: tRow.batteryChargeKwh / per,
@@ -492,7 +515,7 @@
                     } : null,
                     rec: res.recommended ? {
                         sizeKwp: res.recommended.sizeKwp,
-                        savingsPerMo: res.recommended.savingsThb * 30 / per,
+                        savingsPerMo: res.recommended.savingsThb * monthFactor(),
                         paybackMonths: res.recommended.paybackMonths
                     } : null
                 }
@@ -517,7 +540,7 @@
         }
 
         var res = Core.computeSizing(d, {
-            settings: S, mode: state.sizingMode, sizes: sizes,
+            settings: S, mode: state.sizingMode, sizes: sizes, workDaysPerWeek: state.workDaysPerWeek || 7,
             battery: batOpts
         });
 
@@ -526,8 +549,8 @@
     }
 
     // เซลล์ของแถวตารางขนาด (ใช้ร่วมกันทั้งตารางหลักและหน้าละเอียด)
-    function sizingRowCells(r, period, recKwp, isRec, isTrial, hybrid) {
-        var mPerMo = r.savingsThb * 30 / period;
+    function sizingRowCells(r, mf, recKwp, isRec, isTrial, hybrid) {
+        var mPerMo = r.savingsThb * mf;
         var ofRec = recKwp > 0 ? ' (' + Math.round(r.sizeKwp / recKwp * 100) + '%)' : '';
         var cells =
             '<td>' + fmtNum(r.sizeKwp, r.sizeKwp % 1 ? 1 : 0) + ' kWp' + ofRec + '</td>' +
@@ -571,7 +594,7 @@
             sizes.sort(function (a, b) { return a - b; });
         }
         var res = Core.computeSizing(d, {
-            settings: S, mode: state.sizingMode, sizes: sizes,
+            settings: S, mode: state.sizingMode, sizes: sizes, workDaysPerWeek: state.workDaysPerWeek || 7,
             battery: state.sizingMode === 'hybrid' ? {
                 capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0, reserveFrac: (state.sizingReservePct || 0) / 100
             } : undefined
@@ -582,7 +605,7 @@
             var isRec = state.lastRecommended && Math.abs(recKwp - r.sizeKwp) < 0.001;
             var isTrial = Math.abs(r.sizeKwp - state.sizingSize) < 0.001 && !isRec;
             rowsHtml += '<tr' + (isRec ? ' class="rec"' : (isTrial ? ' class="trial"' : '')) + '>' +
-                sizingRowCells(r, period, recKwp, isRec, isTrial, hybrid) + '</tr>';
+                sizingRowCells(r, monthFactor(), recKwp, isRec, isTrial, hybrid) + '</tr>';
         });
         $('detail-modal-title').textContent = '📋 ตารางละเอียด — ไล่ทีละ 5 kWp (5 → ' + top + ' kWp = 2×แนะนำ ' +
             fmtNum(recKwp, 0) + ')';
@@ -595,7 +618,7 @@
 
     function renderSizingChart(res) {
         var labels = res.rows.map(function (r) { return r.sizeKwp + (r.sizeKwp % 1 ? '' : '') + ''; });
-        var monthly = res.rows.map(function (r) { return r.savingsThb * 30 / res.periodDays; });
+        var monthly = res.rows.map(function (r) { return r.savingsThb * monthFactor(); });
         var payback = res.rows.map(function (r) { return isFinite(r.paybackMonths) ? +(r.paybackMonths / 12).toFixed(1) : null; });
         var bg = res.rows.map(function (r) {
             return (res.recommended && Math.abs(res.recommended.sizeKwp - r.sizeKwp) < 0.001) ? '#35d07f' : '#2c4d78';
@@ -610,7 +633,7 @@
         }, {
             y: { position: 'left', title: { display: true, text: 'บาท/เดือน' } },
             y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'ปี' }, beginAtZero: true }
-        }, 'ประหยัดค่าไฟ และระยะคืนทุน (เดือนละ เทียบระยะ ' + res.periodDays + ' วัน แปลงเป็น 30 วัน)');
+        }, 'ประหยัดค่าไฟ และระยะคืนทุน (ประหยัด/เดือน ตามวันเปิดใช้ไฟที่ตั้งไว้)');
     }
 
     function runBattRecommend() {
@@ -621,10 +644,10 @@
         // sweep recommended solar size for best pairing
         var sizing = Core.computeSizing(d, { settings: S, mode: 'ongrid' });
         var size = sizing.recommended ? sizing.recommended.sizeKwp : 10;
-        var first = Core.recommendBattery(d, size, { settings: S });
+        var first = Core.recommendBattery(d, size, { settings: S, workDaysPerWeek: state.workDaysPerWeek || 7 });
         // ตารางแบตเตอรี่: ความจุแนะนำอยู่กลาง ขั้น 10% (50%–150%)
         var caps = first.bestCapacityKwh > 0 ? pctSteps(first.bestCapacityKwh, 0.5) : null;
-        state.lastBattRec = caps ? Core.recommendBattery(d, size, { settings: S, caps: caps }) : first;
+        state.lastBattRec = caps ? Core.recommendBattery(d, size, { settings: S, caps: caps, workDaysPerWeek: state.workDaysPerWeek || 7 }) : first;
         renderBattRec(state.lastBattRec);
         toast('คำนวณแบตแนะนำแล้ว (ขนาดโซลาร์ ' + fmtNum(size, 0) + ' kWp)');
     }
@@ -700,7 +723,7 @@
         var S = effectiveSettings();
         var basis = basisDesc(d);
         var scen = Core.simulateScenario(d, state.savSize, {
-            settings: S, mode: state.savMode,
+            settings: S, mode: state.savMode, workDaysPerWeek: state.workDaysPerWeek || 7,
             battery: state.savMode === 'hybrid' ? {
                 capacityKwh: state.savBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0, reserveFrac: (state.savReservePct || 0) / 100
             } : undefined
@@ -708,8 +731,8 @@
 
         var bb = scen.billBefore.grandTotal, ba = scen.billAfter.grandTotal, sv = scen.savings;
         var perDay = sv / scen.periodDays;
-        var perMonth = sv * 30 / scen.periodDays;
-        var sMonthly = scen.billBefore.grandTotal * 30 / scen.periodDays;
+        var perMonth = sv * monthFactor();
+        var sMonthly = scen.billBefore.grandTotal * monthFactor();
 
         $('save-metrics').innerHTML =
             metric('💰 ค่าไฟเดิม', money(scen.periodDays === 30 && d.nDays <= 1 ? bb : bb), basis.perDay ? 'ระยะ 30 วัน' : 'ระยะ ' + scen.periodDays + ' วัน') +
@@ -728,7 +751,8 @@
             fmtNum(scen.wasteKwh / scen.periodDays, 1) + ' kWh/วัน ไม่ใช่ต่อวัน) (ย้ำ: โมเดลไม่คิดรายได้จากการขายไฟ) · คืนทุน ≈ ' + years(paybackOf(scen, S)) + (state.savMode === 'hybrid' && state.savReservePct > 0 ? ' · 🛡️ สำรองไฟดับ ' + fmtNum(state.savBattery * state.savReservePct / 100, 1) + ' kWh (เก็บนิ่ง ไม่เข้าการคำนวณ)' : '');
 
         $('save-basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note +
-            ' | 💰 ราคา: ' + priceText(S.solar);
+            ' | 💰 ราคา: ' + priceText(S.solar) +
+            ' | 🗓️ เดือน = ×' + monthFactor().toFixed(2) + ' (เปิด ' + (state.workDaysPerWeek || 7) + ' วัน/สัปดาห์)';
 
         renderDailyChart(scen, basis);
 
@@ -755,7 +779,7 @@
         if (scen.savings <= 0) return Infinity;
         var invest = Core.solarCost(scen.solarSizeKwp, S.solar) +
             (state.savMode === 'hybrid' ? scen.batteryKwh * S.battery.pricePerKwh : 0);
-        return invest / scen.savings;
+        return invest / (scen.savings * 30 / scen.periodDays);
     }
 
     function renderDailyChart(scen, basis) {
@@ -1217,6 +1241,7 @@
         $('file-info').hidden = false;
         renderFileMeta();
         renderFileSummary();
+        renderWorkDaysNote();
         switchTab('analysis');
         toast('ใช้โปรไฟล์ที่วาดแล้ว · ' + DrawCalc.TARIFFS[key].label);
     }
@@ -1321,6 +1346,11 @@
             state.savReservePct = Math.min(100, Math.max(0, v));
             clearTimeout(setReserveUi._v);
             setReserveUi._v = setTimeout(renderSavings, 200);
+        });
+        $('work-days').addEventListener('change', function (e) {
+            state.workDaysPerWeek = parseInt(e.target.value, 10) || 7;
+            renderWorkDaysNote();
+            if (state.data) { renderAnalysis(); renderSizing(); renderSavings(); }
         });
 
         $('btn-export-xlsx').addEventListener('click', exportXlsx);

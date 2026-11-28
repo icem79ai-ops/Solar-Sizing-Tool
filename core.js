@@ -392,6 +392,7 @@
             : settings.solar;
         var batteryPrice = (opts.batteryPricePerKwh !== undefined)
             ? opts.batteryPricePerKwh : settings.battery.pricePerKwh;
+        var wdEff = (opts.workDaysPerWeek > 0) ? opts.workDaysPerWeek : 7;
 
         var dailyProfile = buildDailyBell(psh, losses);
         var repRaw = buildRepDay(data);
@@ -452,7 +453,10 @@
             var savings = billBefore.grandTotal - billAfter.grandTotal;
             var savingsPct = billBefore.grandTotal > 0 ? (savings / billBefore.grandTotal * 100) : 0;
             var invest = solarCost(size, solarOpts) + (anyHybrid ? batParams.capacityKwh * batteryPrice : 0);
-            var payback = savings > 0 ? invest / savings : Infinity;
+            // คืนทุนเป็น "เดือนจริง" (30 วัน): เงินลงทุน ÷ ประหยัดต่อเดือน — ไม่ผูกกับความยาวไฟล์
+            var monthDaysEff = monthDays * 7 / wdEff;
+            var monthlySavings = savings * 30 / monthDaysEff;
+            var payback = monthlySavings > 0 ? invest / monthlySavings : Infinity;
             var selfRatio = genKwh > 0 ? selfUsedKwh / genKwh : 0;
 
             rows.push({
@@ -462,6 +466,7 @@
                 batterySocMax: batterySocMax,
                 billBefore: billBefore.grandTotal, billAfter: billAfter.grandTotal,
                 savingsThb: savings, savingsPct: savingsPct, investment: invest,
+                monthlySavingsThb: monthlySavings,
                 paybackMonths: payback, selfConsumptionRatio: selfRatio,
                 gridImportKwh: gridKwh
             });
@@ -481,18 +486,18 @@
             if (good.length) {
                 var bestRoi = -Infinity;
                 for (var i = 0; i < good.length; i++) {
-                    var roi = good[i].savingsThb * 12 / Math.max(good[i].investment, 1);
+                    var roi = good[i].monthlySavingsThb * 12 / Math.max(good[i].investment, 1);
                     if (roi > bestRoi) bestRoi = roi;
                 }
                 var threshold = bestRoi * 0.70;
                 var value = good.filter(function (r) {
-                    return (r.savingsThb * 12 / Math.max(r.investment, 1)) >= threshold;
+                    return (r.monthlySavingsThb * 12 / Math.max(r.investment, 1)) >= threshold;
                 });
                 recommended = value.reduce(function (a, b) { return (b.savingsThb > a.savingsThb) ? b : a; });
             } else if (pool.length) {
                 recommended = pool.reduce(function (a, b) {
-                    var ra = a.savingsThb * 12 / Math.max(a.investment, 1);
-                    var rb = b.savingsThb * 12 / Math.max(b.investment, 1);
+                    var ra = a.monthlySavingsThb * 12 / Math.max(a.investment, 1);
+                    var rb = b.monthlySavingsThb * 12 / Math.max(b.investment, 1);
                     return (rb > ra || (rb === ra && b.savingsThb > a.savingsThb)) ? b : a;
                 });
             }
@@ -625,10 +630,12 @@
             var cap = caps[i];
             var bat = { capacityKwh: cap, dod: dod, efficiency: eff, initialSoc: 0 };
             var scen = simulateScenario(data, sizeKwp, { mode: 'hybrid', tariff: tariff, battery: bat, settings: settings });
-            var addon = scen.savings - base;
+            var wdM = (opts.workDaysPerWeek > 0) ? opts.workDaysPerWeek : 7;
+            var addon = (scen.savings - base) * 30 / (periodDays * 7 / wdM); // เพิ่มประหยัด "ต่อเดือนจริง"
             var solarInvest = solarCost(sizeKwp, solarOptsB);
             var batteryInvest = cap * bprice;
-            var fullPayback = scen.savings > 0 ? (solarInvest + batteryInvest) / scen.savings : Infinity;
+            var monthlyScen = scen.savings * 30 / (periodDays * 7 / wdM);
+            var fullPayback = monthlyScen > 0 ? (solarInvest + batteryInvest) / monthlyScen : Infinity;
             var batteryPayback = addon > 0 ? batteryInvest / addon : Infinity;
             candidates.push({
                 capacityKwh: cap, savingsThb: scen.savings, addonThb: addon,
@@ -804,7 +811,7 @@
             if (valA === null && valB === null) continue;
 
             var date = new Date(yy, mm - 1, dd);
-            if (hh === 24) { date = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1); hh = 0; }
+            // แถว "24.00" = ช่วง 23:45–24:00 ของวันเดียวกัน — ห้ามข้ามไปวันถัดไป (เดิมสร้าง "วันผี" ทำ nDays บวม)
             var minute = hh * 60 + mi;
             var key = date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate();
             dates[key] = 1;
@@ -945,8 +952,7 @@
             if (yy < 100) yy += 2000;
             var hh = parseInt(m[4], 10), mi = parseInt(m[5], 10);
             var base = new Date(yy, mm - 1, dd);
-            var y = base.getFullYear(), mo = base.getMonth(), d = base.getDate();
-            if (hh === 24) { base = new Date(y, mo, d + 1); d = base.getDate(); hh = 0; }
+            // แถว "24:00" = ช่วงท้ายวันเดียวกัน (minute=1440) — ไม่ข้ามวัน (กันวันผี)
             return { date: base, minute: hh * 60 + mi };
         }
         var iso2 = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})/.exec(s);
