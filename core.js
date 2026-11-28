@@ -587,6 +587,8 @@
             daily: daily, nDays: Math.max(1, data.nDays), periodDays: monthDays,
             genKwh: genKwh, selfUsedKwh: selfUsedKwh, wasteKwh: wasteKwh,
             batteryKwh: (mode === 'hybrid' ? batParams.capacityKwh : 0),
+            batteryChargeKwh: (mode === 'hybrid' ? sim.chargeKwh : 0),
+            batteryDischargeKwh: (mode === 'hybrid' ? sim.dischargeKwh : 0),
             solarSizeKwp: sizeKwp,
             tariff: tariff, month: month
         };

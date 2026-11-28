@@ -151,6 +151,7 @@ window.addEventListener('unhandledrejection', function (e) {
     <div class="card">
       <h2>🏆 ขนาดที่แนะนำ</h2>
       <div class="grid4" id="rec-metrics"></div>
+      <div id="batt-status-box" class="batt-box" hidden></div>
       <div id="batt-recommend-box" class="batt-box" hidden></div>
     </div>
 
@@ -304,10 +305,10 @@ window.addEventListener('unhandledrejection', function (e) {
 
 <script src="lib/chart.umd.min.js?v=4"></script>
 <script src="lib/xlsx.full.min.js?v=4"></script>
-<script src="core.js?v=7"></script>
+<script src="core.js?v=8"></script>
 <script src="draw-calc.js?v=1"></script>
 <script src="draw-pad.js?v=1"></script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];

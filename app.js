@@ -336,6 +336,7 @@
             ' | 💰 ราคา: ' + priceText(S.solar);
 
         renderRec(res, S);
+        renderBattStatus(res, S);
         
         // ตั้ง max ของ sizing-size ตามข้อมูล
         var maxSize = Math.max(30, (res.recommended ? res.recommended.sizeKwp : 10) * 1.5);
@@ -372,6 +373,35 @@
         base.querySelector('.metric').classList.add('hl');
     }
 
+    // กล่องวินิจฉัยสถานะแบต (โหมด Hybrid) — ใช้แถวขนาดแนะนำของระยะอ้างอิง
+    function renderBattStatus(res, S) {
+        var box = $('batt-status-box');
+        if (state.sizingMode !== 'hybrid' || !res.recommended) { box.hidden = true; return; }
+        var r = res.recommended, p = res.periodDays;
+        var cap = state.sizingBattery, usable = cap * 0.8;
+        var ch = r.batteryChargeKwh / p;      // kWh/วัน
+        var dis = r.batteryDischargeKwh / p;  // kWh/วัน
+        var soc = Math.round((r.batterySocMax || 0) * 100);
+        var head = '<b>🔋 สถานะแบต ' + cap + ' kWh (ชาร์จได้จริง ' + fmtNum(usable, 1) + ' kWh @ DoD 80%)</b>';
+        var verdict;
+        if (ch < 0.05 && dis < 0.05) {
+            verdict = '⚠️ <b>ไม่มีพลังงานเหลือเข้าแบตเลย</b> — โซลาร์ ' + fmtNum(r.sizeKwp, 0) +
+                ' kWp ผลิตไม่เกินโหลดกลางวันเลย แบตจึงชาร์จไม่ได้ และไม่สร้างประหยัดเพิ่ม (ลงทุนแบต ~' +
+                money(cap * S.battery.pricePerKwh) + ' โดยเปล่าประโยชน์) → ถ้าต้องการติดแบต ต้องเพิ่มขนาดโซลาร์ให้ผลิตเกินโหลดก่อน';
+        } else if (ch < 0.05 && dis >= 0.05) {
+            verdict = '⚠️ แบต<b>ไม่เคยถูกชาร์จ</b> — ไฟที่แบตจ่าย ~' + fmtNum(dis, 1) +
+                ' kWh/วัน มาจากไฟค้างชาร์จเริ่มต้น 50% เท่านั้น (ใช้หมดไม่มีเติมเพิ่ม) ระยะยาวแบตไม่ช่วยลดค่าไฟ';
+        } else if (r.wasteKwh / p >= 0.5) {
+            verdict = '🟡 แบต<b>เต็มก่อนเย็น</b> — ยังเหลือทิ้ง ~' + fmtNum(r.wasteKwh / p, 1) +
+                ' kWh/วัน เพราะแบตรับไม่ไหว → ความจุมากขึ้นอาจคุ้ม (ลองกด ✨ แนะนำความจุแบต)';
+        } else {
+            verdict = '✅ แบตชาร์จ ~' + fmtNum(ch, 1) + ' kWh/วัน · จ่ายให้โหลด ~' + fmtNum(dis, 1) +
+                ' kWh/วัน · SoC สูงสุด ' + soc + '%';
+        }
+        box.hidden = false;
+        box.innerHTML = head + '<p>' + verdict + '</p>';
+    }
+
     // ขนาดรอบค่าแนะนำ: 10%-100% โดย recommended ที่ 50% ขั้นละ 10%
     function pctSteps(base, minPct) {
         var out = [];
@@ -387,16 +417,26 @@
         return res.rows;
     }
 
+    // หัวตารางขนาด: โหมด On-Grid 10 คอลัมน์ / Hybrid เพิ่มคอลัมน์แบต 3 คอลัมน์
+    var SIZING_COLS_BASE = '<th>ขนาด (kWp)</th><th>ผลิต (kWh)</th><th>ใช้เอง (kWh)</th>' +
+        '<th>เหลือทิ้ง/ส่งGrid (kWh รวมระยะ)</th><th>ประหยัด/เดือน</th><th>% ลด</th>' +
+        '<th>คืนทุน (ปี)</th><th>ใช้เอง (%)</th><th>ลงทุน</th><th></th>';
+    var SIZING_COLS_HYBRID = '<th>ขนาด (kWp)</th><th>ผลิต (kWh)</th><th>ใช้เอง (kWh)</th>' +
+        '<th>เหลือทิ้ง (kWh รวมระยะ)</th><th>🔋 ชาร์จ (kWh)</th><th>🔋 จ่ายโหลด (kWh)</th><th>SoC สูงสุด</th>' +
+        '<th>ประหยัด/เดือน</th><th>% ลด</th><th>คืนทุน (ปี)</th><th>ใช้เอง (%)</th><th>ลงทุน</th><th></th>';
+
     function renderSizingTable(res, period, basis) {
+        var hybrid = state.sizingMode === 'hybrid';
+        $('sizing-table').querySelector('thead tr').innerHTML = hybrid ? SIZING_COLS_HYBRID : SIZING_COLS_BASE;
         var tbody = $('sizing-table').querySelector('tbody');
         tbody.innerHTML = '';
-        
+
         // Handle null/undefined res or res.rows
         if (!res || !res.rows || res.rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10">รอการคำนวณ...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="' + (hybrid ? 13 : 10) + '">รอการคำนวณ...</td></tr>';
             return;
         }
-        
+
         var recKwp = res.recommended ? res.recommended.sizeKwp : 0;
         sizingWindow(res).forEach(function (r) {
             var tr = document.createElement('tr');
@@ -406,17 +446,25 @@
             if (isTrial) tr.className = 'trial';
             var mPerMo = r.savingsThb * 30 / period;
             var ofRec = recKwp > 0 ? ' (' + Math.round(r.sizeKwp / recKwp * 100) + '%)' : '';
-            tr.innerHTML =
+            var cells =
                 '<td>' + fmtNum(r.sizeKwp, r.sizeKwp % 1 ? 1 : 0) + ' kWp' + ofRec + '</td>' +
                 '<td>' + fmtNum(r.genKwh, 0) + '</td>' +
                 '<td>' + fmtNum(r.selfUsedKwh, 0) + '</td>' +
-                '<td>' + fmtNum(r.wasteKwh, 0) + '</td>' +
+                '<td>' + fmtNum(r.wasteKwh, 0) + '</td>';
+            if (hybrid) {
+                cells +=
+                    '<td>' + fmtNum(r.batteryChargeKwh, 0) + '</td>' +
+                    '<td>' + fmtNum(r.batteryDischargeKwh, 0) + '</td>' +
+                    '<td>' + (r.batterySocMax > 0 ? Math.round(r.batterySocMax * 100) + '%' : '—') + '</td>';
+            }
+            cells +=
                 '<td>' + money(mPerMo) + '</td>' +
                 '<td>' + pct(r.savingsPct) + '</td>' +
                 '<td>' + years(r.paybackMonths) + '</td>' +
                 '<td>' + pct(r.selfConsumptionRatio * 100) + '</td>' +
                 '<td>' + money(r.investment) + '</td>' +
                 '<td>' + (tr.className === 'rec' ? '⭐ แนะนำ' : (isTrial ? '🧪 ลอง' : '')) + '</td>';
+            tr.innerHTML = cells;
             tbody.appendChild(tr);
         });
     }
@@ -555,6 +603,13 @@
             metric('🟢 ค่าไฟหลังติดตั้ง', money(ba), 'ประหยัด ' + pct(scen.savings / Math.max(bb, 1) * 100)) +
             metric('⚡ ประหยัด/วัน', money(perDay), basis.perDay ? 'ตัวเลขจริงจากข้อมูล 1 วัน' : 'เฉลี่ยต่อวัน') +
             metric('💹 ประหยัดได้/เดือน (×30)', money(perMonth), pct(sv / Math.max(bb, 1) * 100) + ' ของบิลเดิม');
+        if (state.savMode === 'hybrid') {
+            $('save-metrics').innerHTML +=
+                metric('🔋 แบตชาร์จ', fmtNum(scen.batteryChargeKwh / scen.periodDays, 1) + ' kWh/วัน',
+                    'รวมระยะ ' + scen.periodDays + ' วัน = ' + fmtNum(scen.batteryChargeKwh, 0) + ' kWh') +
+                metric('🔋 แบตจ่ายโหลด', fmtNum(scen.batteryDischargeKwh / scen.periodDays, 1) + ' kWh/วัน',
+                    'ดูรูปแบบชาร์จ-คายในกราฟด้านล่าง');
+        }
         $('waste-caption').textContent = '☀️ โซลาร์ผลิต ' + fmtNum(scen.genKwh, 0) + ' kWh · ใช้เอง ' + fmtNum(scen.selfUsedKwh, 0) +
             ' kWh · เหลือทิ้ง/ส่งGrid ' + fmtNum(scen.wasteKwh, 0) + ' kWh — รวมทั้งระยะ ' + scen.periodDays + ' วัน (เฉลี่ย ~' +
             fmtNum(scen.wasteKwh / scen.periodDays, 1) + ' kWh/วัน ไม่ใช่ต่อวัน) (ย้ำ: โมเดลไม่คิดรายได้จากการขายไฟ) · คืนทุน ≈ ' + years(paybackOf(scen, S));

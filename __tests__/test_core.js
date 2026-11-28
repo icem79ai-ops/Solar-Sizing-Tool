@@ -179,5 +179,37 @@ ok('PRICE: deye1 @8kWp ตรงจุด = 254,430', near(Core.solarCost(8, { p
     ok('PRICE: recommended ยังมีค่า', !!sp.recommended, sp.recommended && sp.recommended.sizeKwp + ' kWp');
 }
 
+// ---------- battery: โหลดต่อเนื่อง >= โซลาร์ (ไม่มีไฟเหลือชาร์จแบต) ----------
+// โหลดเรียบ 6 kW 24 ชม. × 7 วัน — โซลาร์ 5 kWp พีค ~4.4 kW < 6 kW ทุกช่วง
+{
+    const rowsF = [];
+    for (let d = 0; d < 7; d++) {
+        for (let i = 0; i < 96; i++) {
+            rowsF.push({ ts: new Date(2026, 3, d + 1), minute: i * 15, kw: 6, onPeak: i * 15 >= 540 && i * 15 < 1320 });
+        }
+    }
+    const flat = { rows: rowsF, nDays: 7, nIntervals: rowsF.length, totalKwh: 1008, peakKw: 6,
+        intervalMinutes: 15, metadata: { month: 4 }, isPea: true, label: 'flat6kW' };
+    const bat10 = { capacityKwh: 10, dod: 0.8, efficiency: 0.9, initialSoc: 0.5 };
+    const onF = Core.computeSizing(flat, { settings: S, mode: 'ongrid' });
+    const hF = Core.computeSizing(flat, { settings: S, mode: 'hybrid', battery: bat10 });
+    const r5h = hF.rows.find(r => r.sizeKwp === 5);
+    const r5o = onF.rows.find(r => r.sizeKwp === 5);
+    ok('BATT/FLAT: ไม่มีไฟเหลือ — แบตชาร์จ 0 kWh', r5h.batteryChargeKwh === 0, r5h.batteryChargeKwh.toFixed(3));
+    ok('BATT/FLAT: SoC ไม่เคยสูงกว่าเริ่มต้น (ไม่มีการชาร์จ) และถูกคายจนหมด',
+        r5h.batterySocMax < 0.5 && r5h.batterySocMax > 0, (r5h.batterySocMax * 100).toFixed(1) + '%');
+    ok('BATT/FLAT: savings hybrid ≈ ongrid (เหลือผลจากไฟค้างชาร์จแรก <50฿)',
+        Math.abs(r5h.savingsThb - r5o.savingsThb) < 50, (r5h.savingsThb - r5o.savingsThb).toFixed(1) + ' ฿');
+    ok('BATT/FLAT: คืนทุนแย่กว่า ongrid (ค่าแบตเปล่าประโยชน์)', r5h.paybackMonths > r5o.paybackMonths,
+        r5h.paybackMonths.toFixed(0) + ' vs ' + r5o.paybackMonths.toFixed(0) + ' mo');
+    const hF15 = Core.computeSizing(flat, { settings: S, mode: 'hybrid', sizes: [15], battery: bat10 });
+    ok('BATT/FLAT: โซลาร์ 15kWp เริ่มมีไฟเหลือ → แบตชาร์จได้', hF15.rows[0].batteryChargeKwh > 0,
+        hF15.rows[0].batteryChargeKwh.toFixed(1) + ' kWh');
+    const scenF = Core.simulateScenario(flat, 5, { settings: S, mode: 'hybrid', battery: bat10 });
+    ok('BATT/FLAT: simulateScenario รายงาน charge=0 discharge>0',
+        scenF.batteryChargeKwh === 0 && scenF.batteryDischargeKwh > 0,
+        scenF.batteryChargeKwh + ' / ' + scenF.batteryDischargeKwh.toFixed(1));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
