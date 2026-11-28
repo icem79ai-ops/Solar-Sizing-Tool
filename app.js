@@ -1142,22 +1142,25 @@
             return '<option value="' + (i + 1) + '"' + (i + 1 === DRAW_MONTH_DEFAULT ? ' selected' : '') + '>' + n + '</option>';
         }).join('');
         drawPad = DrawPad.mount($('draw-pad'), { initial: drawMonths[drawCur], onChange: onDrawChange });
+        applyDrawLock();
         buildMonthTabs();
         renderBill();
     }
 
     // 🔒 โหมดล็อค kWh/เดือน ของหน้าวาดโหลด (มวลคงที่ — ลาก = ดึง/ดันมวล)
     function applyDrawLock() {
-        if (!drawPad) return;
         var on = $('draw-lock').checked;
-        var v = parseFloat($('draw-lock-kwh').value);
+        var inp = $('draw-lock-kwh');
+        inp.disabled = !on; // ช่องพิมพ์มองเห็นตลอด — ปิดใช้งานเฉพาะตอนไม่ล็อค (แก้บั๊ก: ลืมเปิด hidden)
         var st = $('draw-lock-status');
+        var v = parseFloat(inp.value);
+        if (!drawPad) { if (st) st.textContent = 'กด เปิดตัววาดโหลด ก่อน'; return; }
         if (on && v > 0) {
             drawPad.setLock(v);
             if (st) st.textContent = '🔒 เป้า ' + fmtNum(v, 0) + ' kWh/เดือน · มวลคงที่ — ลาก = ดึง/ดันมวล';
         } else {
             drawPad.setLock(null);
-            if (st) st.textContent = '';
+            if (st) st.textContent = on ? 'พิมพ์ kWh/เดือน (จากบิล) เพื่อเริ่มล็อค' : '';
         }
     }
 

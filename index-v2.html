@@ -76,7 +76,7 @@ window.addEventListener('unhandledrejection', function (e) {
         </div>
         <div class="draw-row">
           <label>🔒 ล็อค kWh/เดือน (นวดแป้ง — มวลคงที่) <input type="checkbox" id="draw-lock"></label>
-          <input type="number" id="draw-lock-kwh" min="1" step="1" placeholder="kWh/เดือน จากบิล เช่น 11137" style="width:170px" hidden>
+          <input type="number" id="draw-lock-kwh" min="1" step="1" placeholder="kWh/เดือน จากบิล เช่น 11137" style="width:170px" disabled>
           <span class="note" id="draw-lock-status"></span>
         </div>
         <div class="month-tabs" id="draw-months"></div>
@@ -443,7 +443,7 @@ window.addEventListener('unhandledrejection', function (e) {
 <script src="core.js?v=18"></script>
 <script src="draw-calc.js?v=2"></script>
 <script src="draw-pad.js?v=2"></script>
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];
