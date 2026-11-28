@@ -25,6 +25,7 @@
         var slots = opts.initial ? DrawCalc.cleanSlots(opts.initial) : DrawCalc.hourlyToSlots(Array(24).fill(0.5));
         var past = [], future = [];
         var drawing = false, lastI = null;
+        var lockMonthKwh = null; // 🔒 โหมดล็อคมวลคงที่: ตัวเลข kWh/เดือน (null = ปกติ)
 
         // ---- ส่วนประกอบ UI
         var bar = el('div', { class: 'draw-bar' });
@@ -55,6 +56,20 @@
         function yOf(kw) { return PT + plotH() * (1 - Math.min(kw, kmax()) / kmax()); }
         function setStatus(t) { status.textContent = t; }
         function snapshot() { past.push(slots.slice()); if (past.length > LIMIT) past.shift(); future = []; }
+
+        function dayKwh() { return lockMonthKwh ? lockMonthKwh / 30 : null; }
+        // ยืนพื้น: ปรับกราฟปัจจุบันให้มวลรวม = เป้า (ถ้าว่าง = เส้นแบนราบที่ค่าเฉลี่ย)
+        function normalizeToLock() {
+            var dk = dayKwh(); if (!dk) return;
+            var cur = 0; for (var i = 0; i < slots.length; i++) cur += slots[i] * 0.25;
+            if (cur > 1e-9) { var f = dk / cur; for (var i2 = 0; i2 < slots.length; i2++) slots[i2] *= f; }
+            else { var flat = dk / 24; for (var i3 = 0; i3 < slots.length; i3++) slots[i3] = flat; }
+        }
+        function setLock(monthKwh) {
+            lockMonthKwh = (monthKwh && monthKwh > 0) ? monthKwh : null;
+            if (lockMonthKwh) { snapshot(); normalizeToLock(); changed(); }
+            render();
+        }
 
         function render() {
             var W = cv.width, H = cv.height, K = kmax();
@@ -88,7 +103,11 @@
             }
         }
 
-        function changed() { render(); onChange(getSlots()); }
+        function changed() { render(); updateLockHint(); onChange(getSlots()); }
+        function updateLockHint() {
+            if (lockMonthKwh) hint.textContent = '🔒 ล็อค ' + lockMonthKwh + ' kWh/เดือน (มวลคงที่) — ลาก = ดึง/ดันมวล รวมจะคงที่เสมอ · มวลที่ยังดึงได้ (นอกช่วงที่จับล่าสุด) ≈ ' + (function(){ var s=0; for (var i=0;i<slots.length;i++) s+=slots[i]; return Math.round(s*0.25); })() + ' kWh';
+            else hint.textContent = 'ลากบนกราฟเพื่อกำหนด kW ทุก 15 นาที · ส้ม = On-Peak 09:00–22:00 · ฟ้า = Off-Peak';
+        }
 
         function getSlots() { return slots.slice(); }
 
@@ -103,6 +122,7 @@
             var i = Math.min(SLOTS - 1, Math.max(0, Math.floor((p.x - PL) / CELL_W)));
             var kw = (1 - (p.y - PT) / plotH()) * kmax();
             kw = Math.round(Math.min(kmax(), Math.max(0, kw)) * 10) / 10;
+            if (lockMonthKwh) { kw = DrawCalc.pullPushMass(slots, Math.min(lastI === null ? i : lastI, i), Math.max(lastI === null ? i : lastI, i), kw); kw = Math.round(kw * 10) / 10; }
             var from = lastI === null ? i : lastI;
             var lo = Math.min(from, i), hi = Math.max(from, i);
             for (var k = lo; k <= hi; k++) slots[k] = kw;
@@ -128,7 +148,7 @@
             if (!future.length) { setStatus('ไม่มีอะไรให้ทำซ้ำ'); return; }
             past.push(slots.slice()); slots = future.pop(); changed(); setStatus('ทำซ้ำแล้ว');
         }
-        function setSlots(arr) { snapshot(); slots = DrawCalc.cleanSlots(arr); changed(); }
+        function setSlots(arr) { snapshot(); slots = DrawCalc.cleanSlots(arr); if (lockMonthKwh) normalizeToLock(); changed(); }
 
         btnUndo.onclick = undo;
         btnRedo.onclick = redo;
@@ -147,10 +167,11 @@
         document.addEventListener('keydown', onKey);
 
         // โหลดค่าโดยไม่บันทึกประวัติและไม่เรียก onChange (ใช้ตอนสลับเดือน)
-        function load(arr) { slots = DrawCalc.cleanSlots(arr); render(); }
+        function load(arr) { slots = DrawCalc.cleanSlots(arr); if (lockMonthKwh) normalizeToLock(); render(); updateLockHint(); }
 
         render();
-        return { getSlots: getSlots, setSlots: setSlots, load: load, undo: undo, redo: redo };
+        updateLockHint();
+        return { getSlots: getSlots, setSlots: setSlots, load: load, undo: undo, redo: redo, setLock: setLock };
     }
 
     return { mount: mount };

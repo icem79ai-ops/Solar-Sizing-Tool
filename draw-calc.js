@@ -276,11 +276,44 @@
         return avg;
     }
 
+    // ================================================================
+    // 🔒 โหมดดึง-ดัน มวลคงที่ (ล็อค kWh/เดือน)
+    // ปรับช่วง [lo..hi] ให้ได้ค่า kw แล้ว "ยืด/หดส่วนอื่นทั้งหมดตามสัดส่วน"
+    // เพื่อให้มวลรวม (kWh/วัน) คงเดิมเสมอ — เกิน/ขาดเป้าไม่ได้ในโครงสร้าง
+    // คืนค่า kw ที่ใช้ได้จริง (ถ้ามวลรวมทั้งกราฟไม่พอจะถูกจำกัดที่ระดับที่ทำได้)
+    // ================================================================
+    function pullPushMass(slots, lo, hi, kw) {
+        var n = hi - lo + 1;
+        var spanSum = 0, otherSum = 0, i;
+        for (i = 0; i < slots.length; i++) {
+            if (i >= lo && i <= hi) spanSum += slots[i];
+            else otherSum += slots[i];
+        }
+        var delta = kw * n - spanSum; // >0 = ดึง (ต้องการมวลจากส่วนอื่น), <0 = ดัน (ปล่อยมวลให้ส่วนอื่น)
+        if (delta > 1e-12) {
+            if (otherSum <= 1e-12) {
+                // มวลทั้งกราฟหมดแล้ว — ดึงต่อไม่ได้: คืนระดับที่มวลอนุญาต
+                return spanSum / n;
+            }
+            var f = 1 - Math.min(1, delta / otherSum);
+            for (i = 0; i < slots.length; i++) if (i < lo || i > hi) slots[i] *= f;
+            if (delta > otherSum) kw = (spanSum + otherSum) / n; // มวลไม่พอ — จำกัดที่ระดับที่ทำได้
+            return kw;
+        }
+        if (delta < -1e-12) {
+            var give = -delta;
+            var f2 = 1 + give / Math.max(otherSum, 1e-12);
+            for (i = 0; i < slots.length; i++) if (i < lo || i > hi) slots[i] *= f2;
+            return kw;
+        }
+        return kw;
+    }
+
     return {
         TARIFFS: TARIFFS, applyOverrides: applyOverrides, toCoreTariff: toCoreTariff, billBreakdown: billBreakdown, annualBills: annualBills, averageSlots: averageSlots,
         slotsToData: slotsToData, THAI_MONTHS: THAI_MONTHS,
         DEMAND_TARIFFS: DEMAND_TARIFFS, demandBill: demandBill,
         SLOTS: SLOTS, dailyKwh: dailyKwh, monthlyBill: monthlyBill,
-        compareAll: compareAll, cleanSlots: cleanSlots, hourlyToSlots: hourlyToSlots
+        compareAll: compareAll, cleanSlots: cleanSlots, hourlyToSlots: hourlyToSlots, pullPushMass: pullPushMass
     };
 });

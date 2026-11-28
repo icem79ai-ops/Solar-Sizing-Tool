@@ -1146,6 +1146,21 @@
         renderBill();
     }
 
+    // 🔒 โหมดล็อค kWh/เดือน ของหน้าวาดโหลด (มวลคงที่ — ลาก = ดึง/ดันมวล)
+    function applyDrawLock() {
+        if (!drawPad) return;
+        var on = $('draw-lock').checked;
+        var v = parseFloat($('draw-lock-kwh').value);
+        var st = $('draw-lock-status');
+        if (on && v > 0) {
+            drawPad.setLock(v);
+            if (st) st.textContent = '🔒 เป้า ' + fmtNum(v, 0) + ' kWh/เดือน · มวลคงที่ — ลาก = ดึง/ดันมวล';
+        } else {
+            drawPad.setLock(null);
+            if (st) st.textContent = '';
+        }
+    }
+
     function onDrawChange(slots) {
         if (drawSame) {
             for (var m = 0; m < 12; m++) drawMonths[m] = slots.slice();
@@ -1305,6 +1320,8 @@
         $('btn-copy-all').addEventListener('click', copyMonthToAll);
         $('draw-rate').addEventListener('change', onHomeRateChange);
         $('draw-view').addEventListener('change', changeDrawView);
+        $('draw-lock').addEventListener('change', applyDrawLock);
+        $('draw-lock-kwh').addEventListener('input', applyDrawLock);
 
         $('sizing-size').addEventListener('input', function (e) {
             state.sizingSize = parseFloat(e.target.value);

@@ -267,5 +267,30 @@ ok('PRICE: deye1 @8kWp ตรงจุด = 254,430', near(Core.solarCost(8, { p
         near(sizeTou2.rows[0].paybackMonths, 480000 / (4971.1 * 30 / 18), 2), sizeTou2.rows[0].paybackMonths.toFixed(1) + ' mo');
 }
 
+// ---------- lock mode: ดึง/ดันมวลคงที่ (หน้าวาดโหลด โหมดล็อค kWh/เดือน) ----------
+const DrawCalc = require('../draw-calc.js');
+{
+    const slots = new Array(96).fill(10); // แบน 10 kW = 240 kWh/วัน
+    const kw = DrawCalc.pullPushMass(slots, 40, 49, 20); // ดึงช่วง 40-49 ขึ้นเป็น 20 kW
+    for (let i = 40; i <= 49; i++) slots[i] = kw; // ตัววาดใส่ค่าที่ได้ลงช่วงที่ลาก
+    const tot = slots.reduce((a, b) => a + b, 0) * 0.25;
+    ok('LOCK: มวลรวมคงเดิมหลังดึง (240 kWh/วัน)', near(tot, 240, 1e-6), tot.toFixed(2));
+    ok('LOCK: ช่วงที่ดึงได้ 20 kW เต็ม (มวลพอ)', near(kw, 20, 1e-6), kw.toFixed(1));
+    ok('LOCK: ส่วนอื่นยวบลง (10 → ต่ำกว่า 10)', slots[0] < 10, slots[0].toFixed(2));
+    const kw2 = DrawCalc.pullPushMass(slots, 40, 49, 0); // ดันช่วงเดิมลงเป็น 0
+    for (let i = 40; i <= 49; i++) slots[i] = kw2;
+    const tot2 = slots.reduce((a, b) => a + b, 0) * 0.25;
+    ok('LOCK: มวลรวมคงเดิมหลังดัน', near(tot2, 240, 1e-6), tot2.toFixed(2));
+    ok('LOCK: ดันลง 0 → ส่วนอื่นสูงขึ้น', near(kw2, 0, 1e-9) && slots[0] > 10, slots[0].toFixed(2));
+    // ดึงเกินมวลทั้งกราฟ → จำกัดที่ระดับที่มวลอนุญาต (เกินเป้าไม่ได้ในโครงสร้าง)
+    const slots3 = new Array(96).fill(0);
+    slots3[0] = 24; // มวลทั้งกราฟมีแค่ 6 kWh
+    const kw3 = DrawCalc.pullPushMass(slots3, 1, 2, 100); // อยากได้ 100 kW × 2 ช่วง = 50 kWh (ไม่พอ)
+    slots3[1] = kw3; slots3[2] = kw3; // ตัววาดใส่ค่าที่ได้ลงช่วงที่ลาก
+    const tot3 = slots3.reduce((a, b) => a + b, 0) * 0.25;
+    ok('LOCK: ดึงเกินมวล → จำกัดที่ 12 kW (6 kWh ÷ 2 ช่วง)', near(kw3, 12, 1e-6), kw3.toFixed(1));
+    ok('LOCK: มวลรวมยังคงเดิม (6 kWh)', near(tot3, 6, 1e-6), tot3.toFixed(2));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
