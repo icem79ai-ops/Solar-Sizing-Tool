@@ -58,6 +58,11 @@
         if (t.mode === 'flat') return t.flatRate.toFixed(4) + ' บาท/kWh · ค่าบริการ ' + t.serviceFee;
         return 'On ' + t.onPeakRate.toFixed(4) + ' / Off ' + t.offPeakRate.toFixed(4) + ' · ค่าบริการ ' + t.serviceFee;
     }
+    // ชุดราคาโซลาร์ที่ใช้จริง (preset จากใบเสนอราคา หรือ ฿/kWp กำหนดเอง)
+    function priceText(solar) {
+        if (solar.pricePreset && Core.PRICE_PRESETS[solar.pricePreset]) return Core.PRICE_PRESETS[solar.pricePreset].label;
+        return 'กำหนดเอง ' + fmtNum(solar.pricePerKwp, 0) + ' ฿/kWp';
+    }
     // preset ที่จะใช้จริง: ที่ผู้ใช้เลือก หรือเดาจากช่อง Tariff ในไฟล์
     function resolvePreset() {
         if (state.tariffPreset && DrawCalc.TARIFFS[state.tariffPreset]) return state.tariffPreset;
@@ -88,6 +93,8 @@
                 if (o.solar) Object.assign(s.solar, o.solar);
                 if (o.battery) Object.assign(s.battery, o.battery);
                 if (o.location) { s.location = s.location || {}; Object.assign(s.location, o.location); }
+                // ถ้าไฟล์เก่ายังใช้ราคาแบตเริ่มต้นเดิม (ยังไม่เคยแก้เอง) ให้ไปใช้ค่าจริงจากใบเสนอราคา 2569
+                if (o.battery && o.battery.pricePerKwh === 9000) s.battery.pricePerKwh = DEFAULTS.battery.pricePerKwh;
                 s.monthOverride = o.monthOverride === undefined ? null : o.monthOverride;
                 state.tariffPreset = migratePreset(o.tariffPreset || o.tariffMode || 'auto');
                 state.rateOverrides = o.rateOverrides || {};
@@ -325,7 +332,8 @@
         var period = res.periodDays;
 
         $('basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note +
-            ' | ผลิตต่อวันต่อ kWp = ' + (res.psh * (1 - res.systemLosses)).toFixed(2) + ' kWh';
+            ' | ผลิตต่อวันต่อ kWp = ' + (res.psh * (1 - res.systemLosses)).toFixed(2) + ' kWh' +
+            ' | 💰 ราคา: ' + priceText(S.solar);
 
         renderRec(res, S);
         
@@ -551,7 +559,8 @@
             ' kWh · เหลือทิ้ง/ส่งGrid ' + fmtNum(scen.wasteKwh, 0) + ' kWh — รวมทั้งระยะ ' + scen.periodDays + ' วัน (เฉลี่ย ~' +
             fmtNum(scen.wasteKwh / scen.periodDays, 1) + ' kWh/วัน ไม่ใช่ต่อวัน) (ย้ำ: โมเดลไม่คิดรายได้จากการขายไฟ) · คืนทุน ≈ ' + years(paybackOf(scen, S));
 
-        $('save-basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note;
+        $('save-basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note +
+            ' | 💰 ราคา: ' + priceText(S.solar);
 
         renderDailyChart(scen, basis);
 
@@ -576,7 +585,7 @@
 
     function paybackOf(scen, S) {
         if (scen.savings <= 0) return Infinity;
-        var invest = scen.solarSizeKwp * S.solar.pricePerKwp +
+        var invest = Core.solarCost(scen.solarSizeKwp, S.solar) +
             (state.savMode === 'hybrid' ? scen.batteryKwh * S.battery.pricePerKwh : 0);
         return invest / scen.savings;
     }
@@ -793,6 +802,21 @@
             '<optgroup label="กิจการขนาดกลาง ไม่เกิน 33 kV (มีค่าดีมานด์)">' + ['d31', 'd31s', 'd32', 'd32s'].map(rateOptionHtml).join('') + '</optgroup>';
     }
     function num(id) { var v = parseFloat($(id).value); return isNaN(v) ? 0 : v; }
+    // รายละเอียดชุดราคาโซลาร์ (จุดราคาจากใบเสนอราคา)
+    function solarPresetDetail(key) {
+        var p = Core.PRICE_PRESETS[key];
+        return p.curve.map(function (pt) { return pt[0] + ' kWp = ' + Core.fmtMoney(pt[1]) + ' ฿'; }).join(' · ') +
+            ' (นอกช่วง: ต่อเนื่องเชิงเส้นตามความชันปลาย)';
+    }
+    function fillSolarPriceUi() {
+        var key = $('set-solar-preset').value;
+        var isCustom = key === 'custom';
+        $('set-solar-price').disabled = !isCustom;
+        if (isCustom) $('set-solar-price').value = state.settings.solar.pricePerKwp;
+        $('set-solar-preset-detail').textContent = isCustom
+            ? 'ใช้ราคา ฿/kWp เดียวตามช่องด้านล่าง'
+            : solarPresetDetail(key);
+    }
     function openSettings() {
         var s = state.settings;
         $('set-tariff-preset').innerHTML = rateSelectHtml(true);
@@ -801,7 +825,12 @@
         fillRateFields(key);
         $('set-ft').value = s.tariff.ftRate;
         $('set-vat').value = s.tariff.vatRate * 100;
-        $('set-solar-price').value = s.solar.pricePerKwp;
+        $('set-solar-preset').innerHTML = ['custom'].concat(Core.SOLAR_PRESET_ORDER).map(function (k) {
+            return '<option value="' + k + '">' +
+                (k === 'custom' ? 'กำหนดเอง (฿/kWp เดียว)' : Core.PRICE_PRESETS[k].label) + '</option>';
+        }).join('');
+        $('set-solar-preset').value = s.solar.pricePreset || 'custom';
+        fillSolarPriceUi();
         $('set-loss').value = s.solar.systemLosses * 100;
         $('set-cap').value = s.solar.capMultiple || 1;
         $('set-batt-price').value = s.battery.pricePerKwh;
@@ -840,7 +869,8 @@
         }
         s.tariff.ftRate = num('set-ft');
         s.tariff.vatRate = num('set-vat') / 100;
-        s.solar.pricePerKwp = num('set-solar-price') || 40000;
+        s.solar.pricePreset = $('set-solar-preset').value;
+        if (s.solar.pricePreset === 'custom') s.solar.pricePerKwp = num('set-solar-price') || 40000;
         s.solar.systemLosses = (num('set-loss') || 25) / 100;
         s.solar.capMultiple = num('set-cap') > 0 ? num('set-cap') : 1;
         s.battery.pricePerKwh = num('set-batt-price') || 9000;
@@ -1100,6 +1130,7 @@
         $('set-tariff-preset').addEventListener('change', function () {
             fillRateFields(this.value === 'auto' ? resolvePreset() : this.value);
         });
+        $('set-solar-preset').addEventListener('change', fillSolarPriceUi);
         $('btn-save-settings').addEventListener('click', saveSettingsUi);
         $('btn-backup').addEventListener('click', backup);
         $('btn-restore').addEventListener('click', function () { $('restore-input').click(); });

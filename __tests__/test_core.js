@@ -15,6 +15,9 @@ function ok(name, cond, extra) {
 function near(a, b, tol) { return Math.abs(a - b) <= tol; }
 
 const S = Core.cloneSettings(Core.DEFAULT_SETTINGS);
+// ชุดทดสอบเดิม pin กับราคา 40,000 ฿/kWp (regression จาก Python) — ล็อกโหมดกำหนดเอง
+// ชุดทดสอบราคาจริงจากใบเสนอราคา (price presets) อยู่ท้ายไฟล์
+S.solar.pricePreset = 'custom';
 
 // ---------- TOU file (frameset + sidecar) ----------
 const pea = [
@@ -145,6 +148,36 @@ const bell = Core.buildDailyBell(5.8, 0.25);
 let sum = 0; for (let i = 0; i < bell.length; i++) sum += bell[i];
 ok('bell: sum*0.25 = PSH*(1-loss) = 4.35', Math.abs(sum * 0.25 - 4.35) < 1e-9, (sum * 0.25).toFixed(5));
 ok('bell: zero before 07:00 & after 17:00', bell[25] === 0 && bell[70] === 0);
+
+// ---------- price presets (ใบเสนอราคาจริง 2569: Huawei/Deye + LONGi) ----------
+ok('PRICE: 6 presets exported', Core.SOLAR_PRESET_ORDER.length === 6, Core.SOLAR_PRESET_ORDER.join(','));
+// hw3 แทรกเชิงเส้น @12 kWp = 283,470 + (12-10)/(15-10) × (375,670-283,470) = 320,350
+ok('PRICE: hw3 @12kWp = 320,350', near(Core.solarCost(12, { pricePreset: 'hw3' }), 320350, 1),
+    Core.solarCost(12, { pricePreset: 'hw3' }).toFixed(0));
+ok('PRICE: hw3 @10kWp ตรงจุด = 283,470', near(Core.solarCost(10, { pricePreset: 'hw3' }), 283470, 1e-9),
+    Core.solarCost(10, { pricePreset: 'hw3' }).toFixed(0));
+// นอกช่วงบน: 458,700 + 5 × (458,700-375,670)/5 = 541,730
+ok('PRICE: hw3 @25kWp extrapolate = 541,730', near(Core.solarCost(25, { pricePreset: 'hw3' }), 541730, 1),
+    Core.solarCost(25, { pricePreset: 'hw3' }).toFixed(0));
+// ใต้ช่วงล่าง: 171,600 - 2 × (279,365.63-171,600)/5 = 128,493.75
+ok('PRICE: hw1 @3kWp extrapolate = 128,493.75', near(Core.solarCost(3, { pricePreset: 'hw1' }), 128493.75, 1),
+    Core.solarCost(3, { pricePreset: 'hw1' }).toFixed(2));
+ok('PRICE: custom = ฿/kWp เดียว', near(Core.solarCost(10, { pricePerKwp: 40000 }), 400000, 1e-9),
+    Core.solarCost(10, { pricePerKwp: 40000 }).toFixed(0));
+ok('PRICE: deye1 @8kWp ตรงจุด = 254,430', near(Core.solarCost(8, { pricePreset: 'deye1' }), 254430, 1e-9),
+    Core.solarCost(8, { pricePreset: 'deye1' }).toFixed(0));
+// sizing ใช้ preset ผ่าน settings: invest แถว 12 kWp = 320,350 และคืนทุนดีขึ้นกว่า 40k/kWp
+{
+    const tp = Core.cloneSettings(S); tp.solar.pricePreset = 'hw3';
+    const sp = Core.computeSizing(tou, { settings: tp, mode: 'ongrid' });
+    const r12p = sp.rows.find(r => Math.abs(r.sizeKwp - 12) < 0.01);
+    ok('PRICE: sizing invest 12kWp = 320,350', near(r12p.investment, 320350, 1), r12p.investment.toFixed(0));
+    const sLeg = Core.computeSizing(tou, { settings: S, mode: 'ongrid' }); // S = custom 40k/kWp
+    const r12leg = sLeg.rows.find(r => Math.abs(r.sizeKwp - 12) < 0.01);
+    ok('PRICE: payback 12kWp ดีขึ้นกว่า 40k/kWp', r12p.paybackMonths < r12leg.paybackMonths,
+        r12p.paybackMonths.toFixed(1) + ' vs ' + r12leg.paybackMonths.toFixed(1) + ' mo');
+    ok('PRICE: recommended ยังมีค่า', !!sp.recommended, sp.recommended && sp.recommended.sizeKwp + ' kWp');
+}
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

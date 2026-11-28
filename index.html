@@ -142,7 +142,7 @@ window.addEventListener('unhandledrejection', function (e) {
           <input type="range" id="sizing-battery" min="0" max="100" step="5" value="10">
           <div id="sizing-battery-val" class="range-val">10 kWh</div>
           <button class="btn" id="btn-batt-recommend">✨ แนะนำความจุแบต</button>
-          <p class="caption">DoD 80% · efficiency 90% · ราคา 9,000 บาท/kWh</p>
+          <p class="caption">DoD 80% · efficiency 90% · ราคา 7,650 บาท/kWh (เฉลี่ยจากแพ็ก Deye 16 kWh)</p>
         </div>
       </div>
       <p class="caption" id="basis-caption"></p>
@@ -271,7 +271,15 @@ window.addEventListener('unhandledrejection', function (e) {
       </div>
       <div class="grid2">
         <div><label class="lbl">VAT (%)</label><input type="number" step="0.1" id="set-vat"></div>
-        <div><label class="lbl">ราคาโซลาร์ (บาท/kWp)</label><input type="number" step="100" id="set-solar-price"></div>
+        <div></div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label class="lbl">ชุดราคาโซลาร์ (ใบเสนอราคาจริง 2569)</label>
+          <select id="set-solar-preset"></select>
+          <p class="caption" id="set-solar-preset-detail"></p>
+        </div>
+        <div><label class="lbl">ราคาโซลาร์ (บาท/kWp) — ใช้เมื่อ "กำหนดเอง"</label><input type="number" step="100" id="set-solar-price"></div>
       </div>
       <div class="grid2">
         <div><label class="lbl">Loss ระบบโซลาร์ (%)</label><input type="number" step="1" id="set-loss"></div>
@@ -296,10 +304,10 @@ window.addEventListener('unhandledrejection', function (e) {
 
 <script src="lib/chart.umd.min.js?v=4"></script>
 <script src="lib/xlsx.full.min.js?v=4"></script>
-<script src="core.js?v=6"></script>
+<script src="core.js?v=7"></script>
 <script src="draw-calc.js?v=1"></script>
 <script src="draw-pad.js?v=1"></script>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];

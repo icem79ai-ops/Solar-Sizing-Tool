@@ -32,11 +32,51 @@
 
     var DEFAULT_SETTINGS = {
         tariff: DEFAULT_TARIFF,
-        solar: { systemLosses: 0.25, pricePerKwp: 40000, inverterEfficiency: 0.96, capMultiple: 1.0 },
-        battery: { pricePerKwh: 9000, defaultCapacity: 10, defaultDod: 0.8, defaultEfficiency: 0.9 },
+        solar: { systemLosses: 0.25, pricePerKwp: 40000, inverterEfficiency: 0.96, capMultiple: 1.0, pricePreset: 'hw3' },
+        // 7,650 = ค่าเฉลี่ยราคาแพ็กแบต Deye 16 kWh หักลบราคาไม่มีแบต (7 จุดในใบเสนอราคา 2569: 6,311–9,955 ฿/kWh)
+        battery: { pricePerKwh: 7650, defaultCapacity: 10, defaultDod: 0.8, defaultEfficiency: 0.9 },
         location: { name: 'ตรัง', pshMonthly: DEFAULT_PSH_MONTHLY },
         monthOverride: null
     };
+
+    // ------------------------------------------------------------ price presets
+    // ราคาติดตั้งจริงจากใบเสนอราคาของหน่วยงาน (2569) — ไม่เชิงเส้นตามขนาด
+    // จึงเก็บเป็นจุดราคา [kWp, บาท] แล้วแทรกเชิงเส้นระหว่างจุด (นอกช่วงต่อเนื่องตามความชันปลาย)
+    var PRICE_PRESETS = {
+        hw1:   { label: 'Huawei + LONGi · 1 เฟส', curve: [[5, 171600], [10, 279365.63]] },
+        hw3:   { label: 'Huawei + LONGi · 3 เฟส', curve: [[5, 189530], [10, 283470], [15, 375670], [20, 458700]] },
+        hwo1:  { label: 'Huawei + LONGi + Optimizer · 1 เฟส', curve: [[5, 185790], [10, 304198.13]] },
+        hwo3:  { label: 'Huawei + LONGi + Optimizer · 3 เฟส', curve: [[5, 203720], [10, 310090], [15, 418440], [20, 513700]] },
+        deye1: { label: 'Deye + LONGi · 1 เฟส (ไม่มีแบต)', curve: [[5, 162140], [8, 254430], [10, 280500]] },
+        deye3: { label: 'Deye + LONGi · 3 เฟส (ไม่มีแบต)', curve: [[5, 198660], [10, 253220], [15, 395860], [20, 501160]] }
+    };
+    var SOLAR_PRESET_ORDER = ['hw3', 'hw1', 'hwo3', 'hwo1', 'deye3', 'deye1'];
+
+    function systemPriceFromCurve(kwp, curve) {
+        var pts = curve.slice().sort(function (a, b) { return a[0] - b[0]; });
+        var i, f;
+        if (kwp <= pts[0][0]) {
+            var slopeLo = pts.length > 1 ? (pts[1][1] - pts[0][1]) / (pts[1][0] - pts[0][0]) : 0;
+            return Math.max(0, pts[0][1] + (kwp - pts[0][0]) * slopeLo);
+        }
+        for (i = 1; i < pts.length; i++) {
+            if (kwp <= pts[i][0]) {
+                f = (kwp - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0]);
+                return pts[i - 1][1] + f * (pts[i][1] - pts[i - 1][1]);
+            }
+        }
+        var n = pts.length;
+        var slopeHi = n > 1 ? (pts[n - 1][1] - pts[n - 2][1]) / (pts[n - 1][0] - pts[n - 2][0]) : 0;
+        return pts[n - 1][1] + (kwp - pts[n - 1][0]) * slopeHi;
+    }
+
+    // ต้นทุนระบบโซลาร์ขนาด kwp: ใช้ชุดราคา preset ถ้าตั้งไว้ ไม่งั้นใช้ ฿/kWp เดียว
+    function solarCost(kwp, solar) {
+        if (solar && solar.pricePreset && PRICE_PRESETS[solar.pricePreset]) {
+            return systemPriceFromCurve(kwp, PRICE_PRESETS[solar.pricePreset].curve);
+        }
+        return kwp * (solar ? solar.pricePerKwp : DEFAULT_SETTINGS.solar.pricePerKwp);
+    }
 
     // ------------------------------------------------------------ rate presets
     // อัตราอ้างอิงจาก modules/tariff.py (มติ กกพ. 5 ส.ค. 2569)
@@ -343,7 +383,10 @@
         var month = effectiveMonth(data, settings);
         var psh = pshForMonth(month, settings);
         var losses = (opts.systemLosses !== undefined) ? opts.systemLosses : settings.solar.systemLosses;
-        var pricePerKwp = opts.pricePerKwp || settings.solar.pricePerKwp;
+        // opts.pricePerKwp = ทางลัดบังคับราคา ฿/kWp เดียว (ไม่สน preset) — ปกติใช้ settings.solar ทั้งก้อน
+        var solarOpts = (opts.pricePerKwp !== undefined)
+            ? { pricePerKwp: opts.pricePerKwp, pricePreset: null }
+            : settings.solar;
         var batteryPrice = (opts.batteryPricePerKwh !== undefined)
             ? opts.batteryPricePerKwh : settings.battery.pricePerKwh;
 
@@ -405,7 +448,7 @@
 
             var savings = billBefore.grandTotal - billAfter.grandTotal;
             var savingsPct = billBefore.grandTotal > 0 ? (savings / billBefore.grandTotal * 100) : 0;
-            var invest = size * pricePerKwp + (anyHybrid ? batParams.capacityKwh * batteryPrice : 0);
+            var invest = solarCost(size, solarOpts) + (anyHybrid ? batParams.capacityKwh * batteryPrice : 0);
             var payback = savings > 0 ? invest / savings : Infinity;
             var selfRatio = genKwh > 0 ? selfUsedKwh / genKwh : 0;
 
@@ -557,7 +600,9 @@
         var dod = (opts.dod !== undefined) ? opts.dod : settings.battery.defaultDod;
         var eff = (opts.efficiency !== undefined) ? opts.efficiency : settings.battery.defaultEfficiency;
         var bprice = (opts.batteryPricePerKwh !== undefined) ? opts.batteryPricePerKwh : settings.battery.pricePerKwh;
-        var solarPrice = opts.pricePerKwp || settings.solar.pricePerKwp;
+        var solarOptsB = (opts.pricePerKwp !== undefined)
+            ? { pricePerKwp: opts.pricePerKwp, pricePreset: null }
+            : settings.solar;
         var caps = [];
         if (opts.caps && opts.caps.length) {
             for (var q = 0; q < opts.caps.length; q++) caps.push(opts.caps[q]);
@@ -571,9 +616,9 @@
         for (var i = 0; i < caps.length; i++) {
             var cap = caps[i];
             var bat = { capacityKwh: cap, dod: dod, efficiency: eff, initialSoc: 0.5 };
-            var scen = simulateScenario(data, sizeKwp, { mode: 'hybrid', tariff: tariff, battery: bat, settings: settings, batteryPricePerKwh: bprice, pricePerKwp: solarPrice });
+            var scen = simulateScenario(data, sizeKwp, { mode: 'hybrid', tariff: tariff, battery: bat, settings: settings });
             var addon = scen.savings - base;
-            var solarInvest = sizeKwp * solarPrice;
+            var solarInvest = solarCost(sizeKwp, solarOptsB);
             var batteryInvest = cap * bprice;
             var fullPayback = scen.savings > 0 ? (solarInvest + batteryInvest) / scen.savings : Infinity;
             var batteryPayback = addon > 0 ? batteryInvest / addon : Infinity;
@@ -1007,6 +1052,8 @@
         N_INTERVALS: N_INTERVALS, DT_HOURS: DT_HOURS,
         DEFAULT_SETTINGS: DEFAULT_SETTINGS,
         TARIFF_PRESETS: TARIFF_PRESETS, PRESET_ORDER: PRESET_ORDER,
+        PRICE_PRESETS: PRICE_PRESETS, SOLAR_PRESET_ORDER: SOLAR_PRESET_ORDER,
+        systemPriceFromCurve: systemPriceFromCurve, solarCost: solarCost,
         tariffFromPreset: tariffFromPreset, presetFromTariffCode: presetFromTariffCode,
         buildDailyBell: buildDailyBell,
         billFromKwh: billFromKwh, billFromKwhPeriod: billFromKwhPeriod, billForSeries: billForSeries,
