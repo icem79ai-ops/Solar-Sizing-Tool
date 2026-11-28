@@ -467,6 +467,34 @@
             tr.innerHTML = cells;
             tbody.appendChild(tr);
         });
+
+        // แจ้ง UI ภายนอก (หน้าทดลอง index-v2.html) ให้โชว์ตัวเลขสดของขนาดทดลองได้ทันที
+        if (window.CustomEvent) {
+            var per = period || 30;
+            var tRow = null;
+            for (var ri = 0; ri < res.rows.length; ri++) {
+                if (Math.abs(res.rows[ri].sizeKwp - state.sizingSize) < 0.001) { tRow = res.rows[ri]; break; }
+            }
+            window.dispatchEvent(new CustomEvent('sizing:updated', {
+                detail: {
+                    mode: state.sizingMode, period: per,
+                    trial: tRow ? {
+                        sizeKwp: tRow.sizeKwp,
+                        savingsPerMo: tRow.savingsThb * 30 / per,
+                        paybackMonths: tRow.paybackMonths,
+                        investment: tRow.investment,
+                        chargePerDay: tRow.batteryChargeKwh / per,
+                        dischargePerDay: tRow.batteryDischargeKwh / per,
+                        socMaxPct: (tRow.batterySocMax || 0) * 100
+                    } : null,
+                    rec: res.recommended ? {
+                        sizeKwp: res.recommended.sizeKwp,
+                        savingsPerMo: res.recommended.savingsThb * 30 / per,
+                        paybackMonths: res.recommended.paybackMonths
+                    } : null
+                }
+            }));
+        }
     }
 
     function updateSizingTable() {

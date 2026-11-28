@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>☀️ Solar Sizing Tool (ทดลอง v2)</title>
+<script>
+window.__fatal = function (msg, extra) {
+    var d = document.getElementById('fatal');
+    if (!d) {
+        d = document.createElement('div');
+        d.id = 'fatal';
+        d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;background:#b71c1c;color:#fff;padding:12px 16px;font:13px/1.5 system-ui,sans-serif;white-space:pre-wrap;box-shadow:0 2px 8px rgba(0,0,0,.4);';
+        document.body.insertBefore(d, document.body.firstChild);
+    }
+    d.style.display = 'block';
+    d.textContent = '⚠️ ' + msg + (extra ? '\n' + extra : '');
+};
+window.addEventListener('error', function (e) {
+    window.__fatal('เกิดข้อผิดพลาด JavaScript: ' + (e.error && e.error.message || e.message || 'unknown'),
+        e.error && e.error.stack ? e.error.stack.split('\n').slice(0, 3).join('\n') : '');
+});
+window.addEventListener('unhandledrejection', function (e) {
+    window.__fatal('เกิดข้อผิดพลาด (async): ' + (e.reason && e.reason.message || e.reason));
+});
+</script>
+<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style-v2.css?v=1">
+</head>
+<body>
+
+<header id="topbar">
+  <div class="brand">
+    <h1>☀️ Solar Sizing Tool <span class="v2-badge">ทดลอง v2</span></h1>
+    <p class="sub">หน้าทดลองจัดใหม่ (เฉพาะแท็บ ☀️ ขนาด Solar) — หน้าเดิมยังใช้ได้ที่ <a href="index.html" style="color:var(--acc2)">index.html</a> · วิเคราะห์โหลดโปรไฟล์ 15 นาที <span class="offline-badge">offline 100%</span></p>
+  </div>
+  <button class="icon-btn" id="btn-settings" title="ตั้งค่า / สำรองข้อมูล">⚙️</button>
+</header>
+
+<nav id="tabs">
+  <button class="tab active" data-tab="data">📁 ข้อมูล</button>
+  <button class="tab" data-tab="analysis">📊 วิเคราะห์ Load</button>
+  <button class="tab" data-tab="sizing">☀️ ขนาด Solar</button>
+  <button class="tab" data-tab="savings">💰 ประหยัดค่าไฟ</button>
+</nav>
+
+<main id="main">
+
+  <!-- ============================== TAB: ข้อมูล ============================= -->
+  <section id="tab-data" class="pane active">
+    <div class="card">
+      <h2>📁 โหลดข้อมูล Load Profile</h2>
+      <p class="hint">รองรับไฟล์จากมิเตอร์ (ไฟล์ .xls HTML — เลือกทั้งไฟล์หลัก <b>และ</b> ไฟล์ <code>sheet001.htm</code> ในโฟลเดอร์ <code>*_files</code> พร้อมกัน) รวมถึงไฟล์ <code>.xlsx</code> / <code>.csv</code> รูปแบบ <b>วัน/เวลา | Power (kW)</b></p>
+      <label class="upload" for="file-input">
+        <span class="up-icon">📤</span>
+        <span>คลิกเลือกไฟล์… <small>เลือกได้หลายไฟล์ (กด Ctrl เลือกหลาย)</small></span>
+      </label>
+      <input type="file" id="file-input" accept=".xls,.xlsx,.csv,.htm,.html" multiple hidden>
+      <div id="dropzone" class="dropzone">หรือ ลากไฟล์มาวางตรงนี้</div>
+      <div id="load-error" class="error-box" hidden></div>
+    </div>
+
+    <div class="card">
+      <h2>✏️ สร้างโหลดโปรไฟล์เอง</h2>
+      <p class="hint">ไม่มีไฟล์จากมิเตอร์? วาดโหลดรายวันทีละ 15 นาที เลือกอัตราค่าไฟ แล้วดูว่าค่าไฟเกิดจากอะไรบ้าง · บ้านอยู่อาศัยไม่มีค่าดีมานด์ · ทุกวันในเดือนถือว่าเหมือนกัน</p>
+      <button type="button" class="btn" id="btn-open-draw">เปิดตัววาดโหลด</button>
+      <div id="draw-area" hidden>
+        <div class="draw-row">
+          <label>อัตราค่าไฟ <select id="draw-rate"></select></label>
+          <label>รูปแบบ
+            <select id="draw-view">
+              <option value="same">ทุกเดือนเหมือนกัน</option>
+              <option value="per">แยกรายเดือน</option>
+            </select>
+          </label>
+        </div>
+        <div class="month-tabs" id="draw-months"></div>
+        <div class="draw-row">
+          <button type="button" class="btn" id="btn-copy-all">คัดลอกเดือนนี้ไปทุกเดือน</button>
+          <label>เดือนอ้างอิงค่าแดด (PSH) <select id="draw-month"></select></label>
+          <button type="button" class="btn primary" id="btn-use-draw">▶ ใช้โปรไฟล์นี้คำนวณ</button>
+        </div>
+        <div id="draw-pad"></div>
+        <div id="draw-bill"></div>
+      </div>
+    </div>
+
+    <div id="file-info" hidden>
+      <div class="card">
+        <h2>📇 รายละเอียดไฟล์</h2>
+        <div class="grid4" id="file-meta"></div>
+      </div>
+      <div class="card">
+        <h2>🧾 สรุปข้อมูล</h2>
+        <div class="grid4" id="file-summary"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== TAB: วิเคราะห์ ============================= -->
+  <section id="tab-analysis" class="pane">
+    <div class="card">
+      <h2>🧾 ค่าไฟเดิม (ไม่มี Solar)</h2>
+      <div class="tariff-row">
+        <label class="lbl" for="ana-tariff">คิดค่าไฟด้วยอัตรา</label>
+        <select id="ana-tariff"></select>
+        <p class="caption" id="ana-tariff-detail"></p>
+      </div>
+      <div class="grid3" id="bill-metrics"></div>
+      <p class="caption" id="bill-caption"></p>
+      <div class="bill-detail" id="bill-detail"></div>
+    </div>
+    <div class="card">
+      <h2>📈 รูปแบบการโหลดรายวัน (เฉลี่ยต่อ 15 นาที)</h2>
+      <div class="chart-box"><canvas id="analysis-chart"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ============ TAB: ขนาด Solar (จัดใหม่ v2) ============ -->
+  <section id="tab-sizing" class="pane">
+
+    <!-- แถบควบคุมล็อกจอ: ปรับได้ตลอดแม้เลื่อนดูตาราง -->
+    <div class="ctrl-strip">
+      <div class="strip-row">
+        <div class="strip-group">
+          <label class="lbl">โหมดระบบ</label>
+          <div class="seg" id="sizing-mode">
+            <button class="opt active" data-mode="ongrid">On-Grid</button>
+            <button class="opt" data-mode="hybrid">Hybrid</button>
+          </div>
+        </div>
+        <div class="strip-group" style="min-width:220px">
+          <label class="lbl">☀️ ขนาดแผง (kWp)</label>
+          <input type="range" id="sizing-size" min="0.5" max="30" step="0.5" value="5">
+          <div id="sizing-size-val" class="range-val">5 kWp</div>
+        </div>
+        <div class="strip-group" id="sizing-battery-wrap">
+          <label class="lbl">🔋 ความจุแบต (kWh)</label>
+          <input type="range" id="sizing-battery" min="0" max="100" step="5" value="10">
+          <div id="sizing-battery-val" class="range-val">10 kWh</div>
+          <button class="btn" id="btn-batt-recommend">✨ แนะนำความจุแบต</button>
+        </div>
+        <div class="strip-group">
+          <label class="lbl">เดือนอ้างอิงค่าแดด (PSH)</label>
+          <select id="sizing-month"></select>
+        </div>
+      </div>
+      <div class="chip-row">
+        <span class="chip rec" id="rec-chip">⭐ รอโหลดข้อมูล…</span>
+        <span class="chip trial" id="trial-chip">🧪 ปรับ slider ด้านบนได้เลย</span>
+      </div>
+    </div>
+
+    <!-- คำตอบหลัก -->
+    <div class="card">
+      <h2>🏆 ขนาดที่แนะนำ</h2>
+      <div class="grid4" id="rec-metrics"></div>
+      <div id="batt-status-box" class="batt-box" hidden></div>
+      <div id="batt-recommend-box" class="batt-box" hidden></div>
+    </div>
+
+    <!-- ส่วนพับเก็บ: เห็นแค่ที่จำเป็น ที่เหลือกดเปิดเอา -->
+    <details open>
+      <summary>📋 ตารางเปรียบเทียบทุกขนาด</summary>
+      <div class="inner">
+        <div class="table-scroll">
+          <table id="sizing-table">
+            <thead><tr>
+              <th>ขนาด (kWp)</th><th>ผลิต (kWh)</th><th>ใช้เอง (kWh)</th>
+              <th>เหลือทิ้ง/ส่งGrid (kWh รวมระยะ)</th><th>ประหยัด/เดือน</th><th>% ลด</th>
+              <th>คืนทุน (ปี)</th><th>ใช้เอง (%)</th><th>ลงทุน</th><th></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="caption">เหลือทิ้ง = ไฟที่ผลิตเกิน ไม่ถูกใช้เอง ไม่เก็บลงแบต (On-Grid ส่งกลับ Grid ไม่ได้เงิน, Hybrid ถูกตัดทิ้ง) · ตัวเลข kWh เป็นค่ารวมทั้งระยะอ้างอิง ไม่ใช่ต่อวัน · สงสัยค่าไหนกดปุ่ม <b>?</b> มุมขวาล่าง</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>📊 กราฟประหยัด &amp; คืนทุน ต่อขนาด</summary>
+      <div class="inner">
+        <div class="chart-box" style="height:320px"><canvas id="sizing-chart"></canvas></div>
+        <div id="sizing-chart-extra" class="chart-box" style="height:300px"></div>
+      </div>
+    </details>
+
+    <details>
+      <summary>⚖️ รายละเอียดการคำนวณ</summary>
+      <div class="inner">
+        <p class="caption" id="basis-caption"></p>
+        <p class="caption" id="sizing-profile-note"></p>
+        <p class="caption">DoD 80% · efficiency 90% · ราคาแบต 7,650 บาท/kWh (เฉลี่ยจากแพ็ก Deye 16 kWh)</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>📤 ส่งออกผลลัพธ์</summary>
+      <div class="inner">
+        <div class="btn-row">
+          <button class="btn" id="btn-export-xlsx">⬇️ Excel (.xlsx)</button>
+          <button class="btn" id="btn-export-csv">⬇️ CSV</button>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ============================== TAB: ประหยัดค่าไฟ ============================= -->
+  <section id="tab-savings" class="pane">
+    <div class="card">
+      <h2>💰 คำนวณค่าไฟ &amp; คืนทุน (ลองปรับขนาดได้)</h2>
+      <div class="grid2">
+        <div>
+          <label class="lbl">โหมดระบบ</label>
+          <div class="seg" id="sav-mode">
+            <button class="opt active" data-mode="ongrid">On-Grid</button>
+            <button class="opt" data-mode="hybrid">Hybrid</button>
+          </div>
+        </div>
+        <div></div>
+      </div>
+      <label class="lbl">ขนาด Solar (kWp)</label>
+      <input type="range" id="sav-size" min="1" max="30" step="1" value="5">
+      <div id="sav-size-val" class="range-val">5 kWp</div>
+      <div id="sav-battery-wrap">
+        <label class="lbl">🔋 ความจุแบตเตอรี่ (kWh)</label>
+        <input type="range" id="sav-battery" min="0" max="100" step="5" value="10">
+        <div id="sav-battery-val" class="range-val">10 kWh</div>
+      </div>
+      <p class="caption" id="save-basis-caption"></p>
+    </div>
+
+    <div class="card">
+      <h2>💸 ผลลัพธ์</h2>
+      <div class="grid4" id="save-metrics"></div>
+      <p class="caption" id="waste-caption"></p>
+    </div>
+
+    <div class="card">
+      <h2>📈 โหลด vs Solar vs Grid (วันแทน)</h2>
+      <div class="chart-box" style="height:340px"><canvas id="daily-chart"></canvas></div>
+    </div>
+
+    <div class="card" id="soc-card">
+      <h2>🔋 สถานะการชาร์จแบต (SoC)</h2>
+      <div class="chart-box" style="height:240px"><canvas id="soc-chart"></canvas></div>
+      <p class="caption">🧭 วิธีอ่าน: SoC เริ่มต้น 50% — ช่วงกลางวันโซลาร์ผลิตเกินโหลดแบตจะชาร์จขึ้น 100% (เต็ม) ช่วงเย็น-กลางคืนแบตคายไฟให้โหลด ทำให้กริดจ่ายน้อยลง จนกว่าจะหมด (0%)</p>
+    </div>
+  </section>
+</main>
+
+<!-- ============================== Settings modal ============================= -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>⚙️ ตั้งค่า</h2>
+      <button class="icon-btn" id="btn-close-settings">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="lbl">แบบอัตราค่าไฟ (การไฟฟ้า)</label>
+      <select id="set-tariff-preset">
+        <option value="auto">ตรวจจากไฟล์ (อัตโนมัติ)</option>
+        <option value="tou">TOU (On/Off-Peak)</option>
+        <option value="prog5">อัตราก้าวหน้า 5 ขั้น (1.1.1)</option>
+        <option value="prog3">อัตราก้าวหน้า 3 ขั้น (1.1.2)</option>
+        <option value="flat">อัตราคงที่ (Flat)</option>
+        <option value="custom">กำหนดเอง (แก้ตัวเลขเอง)</option>
+      </select>
+      <p class="caption" id="set-preset-detail"></p>
+      <div id="set-tou-rate">
+        <label class="lbl">ค่าไฟ On-Peak (บาท/kWh)</label>
+        <input type="number" step="0.0001" id="set-on-rate">
+        <label class="lbl">ค่าไฟ Off-Peak (บาท/kWh)</label>
+        <input type="number" step="0.0001" id="set-off-rate">
+      </div>
+      <div id="set-flat-wrap">
+        <label class="lbl">ค่าพลังงาน (บาท/kWh)</label>
+        <input type="number" step="0.0001" id="set-flat-rate">
+      </div>
+      <div id="set-demand-wrap">
+        <label class="lbl">ค่าดีมานด์ (บาท/kW ต่อเดือน) — ใช้ค่า Peak ของ TOU ด้วย</label>
+        <input type="number" step="0.01" id="set-demand-rate">
+      </div>
+      <div id="set-prog-rate">
+        <label class="lbl">อัตราก้าวหน้า (บาท/kWh)</label>
+        <div id="set-prog-tiers"></div>
+      </div>
+      <div class="grid2">
+        <div><label class="lbl">ค่าบริการ/เดือน</label><input type="number" step="0.01" id="set-service"></div>
+        <div><label class="lbl">ค่า Ft (บาท/kWh)</label><input type="number" step="0.0001" id="set-ft"></div>
+      </div>
+      <div class="grid2">
+        <div><label class="lbl">VAT (%)</label><input type="number" step="0.1" id="set-vat"></div>
+        <div></div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label class="lbl">ชุดราคาโซลาร์ (ใบเสนอราคาจริง 2569)</label>
+          <select id="set-solar-preset"></select>
+          <p class="caption" id="set-solar-preset-detail"></p>
+        </div>
+        <div><label class="lbl">ราคาโซลาร์ (บาท/kWp) — ใช้เมื่อ "กำหนดเอง"</label><input type="number" step="100" id="set-solar-price"></div>
+      </div>
+      <div class="grid2">
+        <div><label class="lbl">Loss ระบบโซลาร์ (%)</label><input type="number" step="1" id="set-loss"></div>
+        <div><label class="lbl">ราคาแบต (บาท/kWh)</label><input type="number" step="100" id="set-batt-price"></div>
+      </div>
+      <div class="grid2">
+        <div><label class="lbl">เพดานโซลาร์แนะนำ (เท่าของ Peak โหลด)</label><input type="number" step="0.1" min="0.1" id="set-cap"></div>
+        <div></div>
+      </div>
+      <p class="caption">ตัวเลข 36,064/36,269 บาท เป็นบิล TOU รายเดือนของไฟล์ทดสอบ มีผล ไม่ใช่การคาดเดา</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="btn-backup">💾 สำรองข้อมูล (.json)</button>
+      <button class="btn" id="btn-restore">📂 กู้คืน</button>
+      <input type="file" id="restore-input" accept=".json" hidden>
+      <button class="btn primary" id="btn-save-settings">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== Glossary modal (v2) ============================= -->
+<div id="glossary-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>📖 คำอธิบายค่าต่าง ๆ</h2>
+      <button class="icon-btn" id="btn-close-glossary">✕</button>
+    </div>
+    <div class="modal-body">
+      <h3>🏆 ตัวเลขหลัก</h3>
+      <table>
+        <tr><td>⭐ ขนาดแนะนำ</td><td>ขนาดโซลาร์ที่ "คุ้มสุด" ตามเกณฑ์: คืนทุนไม่เกิน 10 ปี ใช้ไฟโซลาร์เองเกิน 50% และไม่เกินเพดาน (เท่าของ Peak โหลด ตั้งได้ใน ⚙️)</td></tr>
+        <tr><td>ประหยัด</td><td>ค่าไฟที่จ่ายน้อยลงต่อเดือน = ค่าไฟเดิม − ค่าไฟหลังติดโซลาร์ (แปลงเป็นเดือน 30 วันให้แล้ว)</td></tr>
+        <tr><td>คืนทุน</td><td>ระยะเวลาที่เงินประหยัดสะสมทันเงินลงทุน — ยิ่งสั้นยิ่งคุ้ม</td></tr>
+        <tr><td>ใช้ไฟจากโซลาร์เอง</td><td>สัดส่วนไฟโซลาร์ที่ถูกใช้ทันที (ยิ่งสูงยิ่งดี — 100% = ไม่มีไฟเหลือเลย)</td></tr>
+      </table>
+      <h3>📋 ตารางเปรียบเทียบ</h3>
+      <table>
+        <tr><td>ขนาด (kWp)</td><td>ขนาดระบบที่จำลอง — ตัวเลข (xx%) คือเทียบกับขนาดแนะนำ</td></tr>
+        <tr><td>ผลิต (kWh)</td><td>ไฟที่โซลาร์ผลิตได้รวมทั้งระยะ = ขนาด kWp × ค่าแดดเดือนนั้น − Loss 25%</td></tr>
+        <tr><td>ใช้เอง (kWh)</td><td>ไฟโซลาร์ที่โหลดใช้ทันทีช่วงกลางวัน</td></tr>
+        <tr><td>เหลือทิ้ง/ส่งGrid</td><td>ไฟผลิตเกินที่ไม่ได้ใช้และไม่ได้เก็บ — On-Grid: ส่งกลับ Grid แต่ไม่ได้เงิน / Hybrid: ถูกตัดทิ้ง (เก็บแบตไม่ทัน)</td></tr>
+        <tr><td>ประหยัด/เดือน</td><td>เงินที่ประหยัดได้ต่อเดือน (30 วัน)</td></tr>
+        <tr><td>% ลด</td><td>ค่าไฟลดลงกี่ % เทียบบิลเดิม</td></tr>
+        <tr><td>คืนทุน (ปี)</td><td>เงินลงทุน ÷ เงินประหยัดต่อปี</td></tr>
+        <tr><td>ใช้เอง (%)</td><td>ไฟที่ใช้เองได้ ÷ ไฟที่ผลิตทั้งหมด — สูง = ไฟไม่หลุดไปไหน</td></tr>
+        <tr><td>ลงทุน</td><td>ราคาติดตั้งตามชุดราคาที่เลือกใน ⚙️ (Hybrid เพิ่มราคาแบตด้วย)</td></tr>
+        <tr><td>🧪 ลอง</td><td>แถวของขนาดที่ slider ชี้อยู่ตอนนี้ — เทียบกับ ⭐ แนะนำได้เลย</td></tr>
+      </table>
+      <h3>🔋 แบตเตอรี่ (โหมด Hybrid)</h3>
+      <table>
+        <tr><td>🔋 ชาร์จ (kWh)</td><td>ไฟโซลาร์ส่วนเกินที่ลงแบต — ถ้าเป็น 0 แปลว่าไม่มีไฟเหลือ แบตไม่มีประโยชน์เลย</td></tr>
+        <tr><td>🔋 จ่ายโหลด (kWh)</td><td>ไฟจากแบตที่จ่ายให้ใช้ช่วงผลิตไม่พอ (เย็น/กลางคืน)</td></tr>
+        <tr><td>SoC สูงสุด</td><td>ระดับชาร์จสูงสุดที่แบตไปถึง — ถ้าไม่เคยถึง 100% แปลว่าแบตใหญ่เกินจำเป็น</td></tr>
+        <tr><td>DoD 80%</td><td>Depth of Discharge — เผื่ออายุแบต ใช้ได้จริงแค่ 80% (แบต 10 kWh → ใช้ 8 kWh)</td></tr>
+      </table>
+      <h3>☀️ พื้นฐาน</h3>
+      <table>
+        <tr><td>PSH</td><td>Peak Sun Hours — ชั่วโมงแดดเทียบเท่าเต็มที่ของเดือนนั้น เช่น 5.8 = แผง 1 kWp ผลิตได้ 5.8 kWh/วัน (ก่อนหัก Loss)</td></tr>
+        <tr><td>Loss 25%</td><td>ความสูญเสียระบบจริง (สายไฟ อินเวอร์เตอร์ อุณหภูมิ ฝุ่น) — แก้ได้ใน ⚙️</td></tr>
+        <tr><td>ระยะอ้างอิง</td><td>จำนวนวันที่ไฟล์มีข้อมูลจริง — ตัวเลข kWh ทั้งหมดเป็นค่ารวมระยะนี้ ไม่ใช่ต่อวัน</td></tr>
+        <tr><td>วันแทน</td><td>โปรไฟล์การใช้ไฟเฉลี่ยจากทุกวันในไฟล์ นำมาจำลองแทนทั้งเดือน</td></tr>
+      </table>
+    </div>
+    <div class="modal-foot">
+      <button class="btn primary" id="btn-close-glossary">เข้าใจแล้ว</button>
+    </div>
+  </div>
+</div>
+
+<button class="fab-help" id="btn-glossary" title="คำอธิบายค่าต่าง ๆ">?</button>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="lib/chart.umd.min.js?v=4"></script>
+<script src="lib/xlsx.full.min.js?v=4"></script>
+<script src="core.js?v=9"></script>
+<script src="draw-calc.js?v=1"></script>
+<script src="draw-pad.js?v=1"></script>
+<script src="app.js?v=9"></script>
+<script>
+window.addEventListener('load', function () {
+    var miss = [];
+    if (typeof Core === 'undefined') miss.push('core.js');
+    if (typeof Chart === 'undefined') miss.push('lib/chart.umd.min.js');
+    if (typeof XLSX === 'undefined') miss.push('lib/xlsx.full.min.js');
+    if (miss.length) {
+        window.__fatal('โหลดสคริปต์ไม่ครบ: ' + miss.join(', ') +
+            ' — ตรวจว่าคัดลอกโฟลเดอร์ครบ (ต้องมีโฟลเดอร์ lib/ อยู่ข้างๆ index.html) ' +
+            'และเปิดจากไฟล์ index.html โดยตรง ไม่ใช่เปิดจากภายใน .zip');
+    }
+});
+
+// ---- เฉพาะหน้าทดลอง v2 ----
+(function () {
+    function money0(n) { return (n === null || n === undefined || !isFinite(n)) ? '—' : Math.round(n).toLocaleString('en-US'); }
+    function yr(m) { return (m === null || m === undefined || !isFinite(m)) ? '∞' : (m / 12).toFixed(1) + ' ปี'; }
+    function r1(n) { return Math.round(n * 10) / 10; }
+
+    var recChip = document.getElementById('rec-chip');
+    var trialChip = document.getElementById('trial-chip');
+
+    // chip สรุปสด: อัปเดตทุกครั้งที่ตารางขนาดคำนวณใหม่ (slider โหนดทันที)
+    window.addEventListener('sizing:updated', function (e) {
+        var d = e.detail || {};
+        if (d.rec) {
+            recChip.innerHTML = '⭐ แนะนำ <b>' + d.rec.sizeKwp + ' kWp</b> · ประหยัด ' +
+                money0(d.rec.savingsPerMo) + ' ฿/เดือน · คืนทุน ' + yr(d.rec.paybackMonths);
+        } else {
+            recChip.textContent = '⭐ ยังไม่มีขนาดแนะนำ — โหลดข้อมูลก่อน';
+        }
+        if (d.trial) {
+            var t = '🧪 ทดลอง <b>' + d.trial.sizeKwp + ' kWp</b> → ประหยัด ' +
+                money0(d.trial.savingsPerMo) + ' ฿/เดือน · คืนทุน ' + yr(d.trial.paybackMonths) +
+                ' · ลงทุน ' + money0(d.trial.investment) + ' ฿';
+            if (d.mode === 'hybrid') {
+                t += ' · 🔋 ชาร์จ ' + r1(d.trial.chargePerDay) + ' / จ่าย ' + r1(d.trial.dischargePerDay) + ' kWh/วัน';
+            }
+            trialChip.innerHTML = t;
+        } else {
+            trialChip.textContent = '🧪 ขนาดทดลองอยู่นอกช่วงตาราง — ขยับ slider เพิ่ม';
+        }
+    });
+
+    // เปิด/ปิด details → บังคับ Chart.js คำนวณขนาดผืนผ้าใบใหม่
+    document.querySelectorAll('#tab-sizing details').forEach(function (dt) {
+        dt.addEventListener('toggle', function () { window.dispatchEvent(new Event('resize')); });
+    });
+
+    // ปุ่ม ? คำอธิบาย
+    var g = document.getElementById('glossary-modal');
+    document.getElementById('btn-glossary').addEventListener('click', function () { g.hidden = false; });
+    document.getElementById('btn-close-glossary').addEventListener('click', function () { g.hidden = true; });
+    g.addEventListener('click', function (e) { if (e.target === g) g.hidden = true; });
+})();
+</script>
+
+<footer class="app-footer">
+  <p>&copy; 2569 (2026) <strong>icem79ai-ops</strong> &mdash; สงวนลิขสิทธิ์</p>
+  <p class="footer-sub">หน้าทดลอง v2 · ห้ามคัดลอก ดัดแปลง หรือเผยแพร่ซอร์สโค้ด &middot; ไลบรารีบุคคลที่สาม: Chart.js (MIT), SheetJS (Apache-2.0)</p>
+</footer>
+
+</body>
+</html>
