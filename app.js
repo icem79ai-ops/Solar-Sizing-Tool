@@ -17,7 +17,9 @@
         sizingBattery: 10,
         savSize: 5,
         savBattery: 10,
-        lastBattRec: null
+        lastBattRec: null,
+        lastRecommended: null,
+        lastPeriod: null
     };
 
     // ------------------------------------------------------------------ utils
@@ -331,6 +333,10 @@
         var maxSize = Math.max(30, (res.recommended ? res.recommended.sizeKwp : 10) * 1.5);
         $('sizing-size').max = maxSize.toFixed(1);
         
+        // เก็บค่า recommended ไว้สำหรับ updateSizingTable
+        state.lastRecommended = res.recommended;
+        state.lastPeriod = res.periodDays;
+        
         updateSizingTable();
         renderSizingChart(res);
 
@@ -412,10 +418,10 @@
             } : undefined
         };
         var res = Core.computeSizing(d, opts);
-        var period = res.periodDays;
+        var period = state.lastPeriod || res.periodDays;
         
         // คำนวณตาราง โดยเพิ่ม sizing-size เข้าไปในรายการ
-        var sizes = pctSteps(res.recommended ? res.recommended.sizeKwp : 10, 0.5);
+        var sizes = pctSteps(state.lastRecommended ? state.lastRecommended.sizeKwp : 10, 0.5);
         if (state.sizingSize > 0 && !sizes.some(function(s) { return Math.abs(s - state.sizingSize) < 0.001; })) {
             sizes.push(state.sizingSize);
             sizes.sort(function(a, b) { return a - b; });
@@ -426,7 +432,7 @@
             battery: opts.battery
         });
         
-        var tableRes = { rows: pct.rows, recommended: res.recommended };
+        var tableRes = { rows: pct.rows, recommended: state.lastRecommended };
         renderSizingTable(tableRes, period, basis);
     }
 
