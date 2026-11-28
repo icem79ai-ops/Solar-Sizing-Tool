@@ -713,12 +713,12 @@
             makeLine('soc-chart', {
                 labels: timeLabels(),
                 datasets: [
-                    { label: 'SoC (%)', data: Array.from(scen.daily.soc).map(function (v) { return v * 100; }),
+                    { label: 'SoC (% ของช่วงใช้งาน DoD 80%)', data: Array.from(scen.daily.soc).map(function (v) { return v * 100; }),
                       borderColor: '#b06bff', backgroundColor: 'rgba(176,107,255,.12)',
                       fill: true, tension: .3, pointRadius: 0, borderWidth: 2 },
-                    { label: 'เต็ม 100%', data: Array(96).fill(100), borderColor: 'rgba(53,208,127,.4)',
+                    { label: 'ช่วงใช้งานเต็ม (100%)', data: Array(96).fill(100), borderColor: 'rgba(53,208,127,.4)',
                       borderDash: [6, 6], pointRadius: 0 },
-                    { label: 'หมด 0%', data: Array(96).fill(0), borderColor: 'rgba(255,95,109,.4)',
+                    { label: 'พื้นล่างตาม DoD (0%)', data: Array(96).fill(0), borderColor: 'rgba(255,95,109,.4)',
                       borderDash: [6, 6], pointRadius: 0 }
                 ]
             }, {
