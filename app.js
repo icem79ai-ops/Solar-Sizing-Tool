@@ -19,7 +19,8 @@
         savBattery: 10,
         lastBattRec: null,
         lastRecommended: null,
-        lastPeriod: null
+        lastPeriod: null,
+        tableExpanded: false
     };
 
     // ------------------------------------------------------------------ utils
@@ -506,8 +507,21 @@
             capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0
         } : undefined;
 
-        // คำนวณตาราง โดยเพิ่ม sizing-size เข้าไปในรายการ
-        var sizes = pctSteps(state.lastRecommended ? state.lastRecommended.sizeKwp : 10, 0.5);
+        // คำนวณตาราง: โหมดสั้น = 10%-100% ของแนะนำ · โหมดละเอียด = ทุก 5 kWp จาก 5 ถึง 2×แนะนำ
+        var recKwp = state.lastRecommended ? state.lastRecommended.sizeKwp : 10;
+        var sizes;
+        if (state.tableExpanded) {
+            var top = Math.ceil((recKwp * 2) / 5) * 5;
+            sizes = [];
+            for (var v = 5; v <= top; v += 5) sizes.push(v);
+        } else {
+            sizes = pctSteps(recKwp, 0.5);
+        }
+        // แถวขนาดแนะนำต้องอยู่เสมอ (เพื่อโชว์เครื่องหมาย ⭐) ถ้าไม่ตรงกลุ่มทีละ 5
+        if (state.lastRecommended && !sizes.some(function (s) { return Math.abs(s - recKwp) < 0.001; })) {
+            sizes.push(recKwp);
+            sizes.sort(function (a, b) { return a - b; });
+        }
         if (state.sizingSize > 0 && !sizes.some(function(s) { return Math.abs(s - state.sizingSize) < 0.001; })) {
             sizes.push(state.sizingSize);
             sizes.sort(function(a, b) { return a - b; });
@@ -520,6 +534,27 @@
 
         var tableRes = { rows: res.rows, recommended: state.lastRecommended };
         renderSizingTable(tableRes, period, basisDesc(d));
+    }
+
+    // ปุ่มสลับตาราง: สั้น (10%-100% ของแนะนำ) ↔ ละเอียด (ทุก 5 kWp ถึง 2×แนะนำ)
+    function toggleTableDetail() {
+        state.tableExpanded = !state.tableExpanded;
+        updateTableExpandUi();
+        updateSizingTable();
+    }
+    function updateTableExpandUi() {
+        var btn = $('btn-table-expand');
+        if (btn) {
+            btn.textContent = state.tableExpanded
+                ? '↩️ กลับไปตารางสั้น (10%–100% ของขนาดแนะนำ)'
+                : '🔍 ดูละเอียด: ทุกขนาดทีละ 5 kWp (5 → 2×ขนาดแนะนำ)';
+        }
+        var cap = $('table-mode-caption');
+        if (cap) {
+            cap.textContent = state.tableExpanded
+                ? '📌 โหมดละเอียด: ทุกขนาดทีละ 5 kWp จาก 5 ถึง 2×ขนาดแนะนำ (+ ขนาดแนะนำ ⭐ และขนาดที่ slider ชี้ 🧪)'
+                : '📌 แนะนำอยู่กลาง (50%) · ช่วง 10%-100% ขั้นละ 10%';
+        }
     }
 
     function renderSizingChart(res) {
@@ -1169,6 +1204,8 @@
             renderAnalysis();
         });
         $('btn-batt-recommend').addEventListener('click', runBattRecommend);
+        $('btn-table-expand').addEventListener('click', toggleTableDetail);
+        updateTableExpandUi();
         $('btn-open-draw').addEventListener('click', openDrawPad);
         $('btn-use-draw').addEventListener('click', useDrawnProfile);
         $('btn-copy-all').addEventListener('click', copyMonthToAll);
