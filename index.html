@@ -161,13 +161,13 @@ window.addEventListener('unhandledrejection', function (e) {
         <table id="sizing-table">
           <thead><tr>
             <th>ขนาด (kWp)</th><th>ผลิต (kWh)</th><th>ใช้เอง (kWh)</th>
-            <th>เหลือทิ้ง/ส่งGrid (kWh)</th><th>ประหยัด/เดือน</th><th>% ลด</th>
+            <th>เหลือทิ้ง/ส่งGrid (kWh รวมระยะ)</th><th>ประหยัด/เดือน</th><th>% ลด</th>
             <th>คืนทุน (ปี)</th><th>ใช้เอง (%)</th><th>ลงทุน</th><th></th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
-      <p class="caption">เหลือทิ้ง = ไฟที่ผลิตเกิน ไม่ถูกใช้เอง ไม่เก็บลงแบต (On-Grid ส่งกลับ Grid ไม่ได้เงิน, Hybrid ถูกตัดทิ้ง)</p>
+      <p class="caption">เหลือทิ้ง = ไฟที่ผลิตเกิน ไม่ถูกใช้เอง ไม่เก็บลงแบต (On-Grid ส่งกลับ Grid ไม่ได้เงิน, Hybrid ถูกตัดทิ้ง) · ตัวเลข kWh ในตารางเป็นค่ารวมทั้งระยะอ้างอิง ไม่ใช่ต่อวัน (ข้อมูล 1 วัน → ระยะ ~30 วัน)</p>
     </div>
 
     <div class="card">
@@ -296,10 +296,10 @@ window.addEventListener('unhandledrejection', function (e) {
 
 <script src="lib/chart.umd.min.js?v=4"></script>
 <script src="lib/xlsx.full.min.js?v=4"></script>
-<script src="core.js?v=5"></script>
+<script src="core.js?v=6"></script>
 <script src="draw-calc.js?v=1"></script>
 <script src="draw-pad.js?v=1"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 <script>
 window.addEventListener('load', function () {
     var miss = [];

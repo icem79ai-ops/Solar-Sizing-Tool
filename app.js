@@ -360,7 +360,7 @@
             metric('🏆 ขนาดแนะนำ', fmtNum(r.sizeKwp, r.sizeKwp % 1 ? 1 : 0) + ' kWp', 'ขนาดที่คุ้มสุดตามเกณฑ์ ROI') +
             metric('ประหยัด', money(saveMonthly) + '/เดือน', 'ประหยัด ' + pct(r.savingsPct)) +
             metric('คืนทุน', years(r.paybackMonths), 'ลงทุน ' + money(r.investment)) +
-            metric('ใช้ไฟจากโซลาร์เอง', pct(r.selfConsumptionRatio * 100), 'เหลือทิ้ง ' + fmtNum(r.wasteKwh, 0) + ' kWh');
+            metric('ใช้ไฟจากโซลาร์เอง', pct(r.selfConsumptionRatio * 100), 'เหลือทิ้ง ~' + fmtNum(r.wasteKwh / p, 1) + ' kWh/วัน');
         base.querySelector('.metric').classList.add('hl');
     }
 
@@ -417,30 +417,25 @@
         if (!state.data) return;
         var d = state.data;
         var S = effectiveSettings();
-        var basis = basisDesc(d);
-        var opts = {
-            settings: S, mode: state.sizingMode,
-            battery: state.sizingMode === 'hybrid' ? {
-                capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0.5
-            } : undefined
-        };
-        var res = Core.computeSizing(d, opts);
-        var period = state.lastPeriod || res.periodDays;
-        
+        var period = state.lastPeriod;
+        var batOpts = state.sizingMode === 'hybrid' ? {
+            capacityKwh: state.sizingBattery, dod: 0.8, efficiency: 0.9, initialSoc: 0.5
+        } : undefined;
+
         // คำนวณตาราง โดยเพิ่ม sizing-size เข้าไปในรายการ
         var sizes = pctSteps(state.lastRecommended ? state.lastRecommended.sizeKwp : 10, 0.5);
         if (state.sizingSize > 0 && !sizes.some(function(s) { return Math.abs(s - state.sizingSize) < 0.001; })) {
             sizes.push(state.sizingSize);
             sizes.sort(function(a, b) { return a - b; });
         }
-        
-        var pct = Core.computeSizing(d, {
+
+        var res = Core.computeSizing(d, {
             settings: S, mode: state.sizingMode, sizes: sizes,
-            battery: opts.battery
+            battery: batOpts
         });
-        
-        var tableRes = { rows: pct.rows, recommended: state.lastRecommended };
-        renderSizingTable(tableRes, period, basis);
+
+        var tableRes = { rows: res.rows, recommended: state.lastRecommended };
+        renderSizingTable(tableRes, period, basisDesc(d));
     }
 
     function renderSizingChart(res) {
@@ -553,7 +548,8 @@
             metric('⚡ ประหยัด/วัน', money(perDay), basis.perDay ? 'ตัวเลขจริงจากข้อมูล 1 วัน' : 'เฉลี่ยต่อวัน') +
             metric('💹 ประหยัดได้/เดือน (×30)', money(perMonth), pct(sv / Math.max(bb, 1) * 100) + ' ของบิลเดิม');
         $('waste-caption').textContent = '☀️ โซลาร์ผลิต ' + fmtNum(scen.genKwh, 0) + ' kWh · ใช้เอง ' + fmtNum(scen.selfUsedKwh, 0) +
-            ' kWh · เหลือทิ้ง/ส่งGrid ' + fmtNum(scen.wasteKwh, 0) + ' kWh (ย้ำ: โมเดลไม่คิดรายได้จากการขายไฟ) · คืนทุน ≈ ' + years(paybackOf(scen, S));
+            ' kWh · เหลือทิ้ง/ส่งGrid ' + fmtNum(scen.wasteKwh, 0) + ' kWh — รวมทั้งระยะ ' + scen.periodDays + ' วัน (เฉลี่ย ~' +
+            fmtNum(scen.wasteKwh / scen.periodDays, 1) + ' kWh/วัน ไม่ใช่ต่อวัน) (ย้ำ: โมเดลไม่คิดรายได้จากการขายไฟ) · คืนทุน ≈ ' + years(paybackOf(scen, S));
 
         $('save-basis-caption').textContent = '⚖️ คำนวณด้วย: ' + tariffText(S.tariff) + ' — ' + basis.note;
 
@@ -1069,7 +1065,9 @@
         $('sizing-size').addEventListener('input', function (e) {
             state.sizingSize = parseFloat(e.target.value);
             $('sizing-size-val').textContent = state.sizingSize + ' kWp';
-            renderSizingTable();
+            // debounce กันคำนวณรกไปทุก ๆ ตำแหน่งที่ลากผ่าน
+            clearTimeout(updateSizingTable._t);
+            updateSizingTable._t = setTimeout(updateSizingTable, 150);
         });
 
         document.querySelectorAll('#sav-mode .opt').forEach(function (b) {

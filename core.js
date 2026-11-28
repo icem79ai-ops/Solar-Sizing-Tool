@@ -212,6 +212,7 @@
     function simulateBattery(solarKw, loadKw, params) {
         var n = loadKw.length;
         var usable = params.capacityKwh * params.dod;
+        var hasBatt = usable > 1e-9; // แบต 0 kWh = ไม่มีแบต → เทียบเท่า On-Grid (กัน NaN จากการหารศูนย์)
         var curSoc = Math.min(Math.max(params.initialSoc, 0), 1);
         var soc = new Float64Array(n);
         var chargeArr = new Float64Array(n);
@@ -224,10 +225,13 @@
             var net = pv - load;
             if (net > 1e-6) {
                 var surplusKwh = net * DT_HOURS;
-                var chargeCapacityKwh = usable - curSoc * usable;
-                var storeable = Math.min(surplusKwh, chargeCapacityKwh);
-                curSoc += storeable / usable;
-                if (curSoc > 1) curSoc = 1;
+                var storeable = 0;
+                if (hasBatt) {
+                    var chargeCapacityKwh = usable - curSoc * usable;
+                    storeable = Math.min(surplusKwh, chargeCapacityKwh);
+                    curSoc += storeable / usable;
+                    if (curSoc > 1) curSoc = 1;
+                }
                 chargeKwh += storeable;
                 chargeArr[i] = storeable / DT_HOURS;
                 var leftover = surplusKwh - storeable;
@@ -235,10 +239,13 @@
                 grid[i] = 0;
             } else {
                 var deficitKwh = -net * DT_HOURS;
-                var availKwh = curSoc * usable * params.efficiency;
-                var dis = Math.min(deficitKwh, availKwh);
-                curSoc -= (dis / params.efficiency) / usable;
-                if (curSoc < 0) curSoc = 0;
+                var dis = 0;
+                if (hasBatt) {
+                    var availKwh = curSoc * usable * params.efficiency;
+                    dis = Math.min(deficitKwh, availKwh);
+                    curSoc -= (dis / params.efficiency) / usable;
+                    if (curSoc < 0) curSoc = 0;
+                }
                 dischargeKwh += dis;
                 batteryUsedKwh += dis;
                 dischargeArr[i] = dis / DT_HOURS;
@@ -246,7 +253,7 @@
                 grid[i] = Math.max(0, remaining / DT_HOURS);
                 exportArr[i] = 0;
             }
-            soc[i] = curSoc;
+            soc[i] = hasBatt ? curSoc : 0;
         }
         return {
             socSeries: soc, chargeKwh: chargeKwh, dischargeKwh: dischargeKwh,
