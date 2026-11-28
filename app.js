@@ -294,6 +294,21 @@
     }
 
     // ------------------------------------------------------------------ sizing
+    // ตั้งค่า UI ช่องสำรองไฟดับ: ค่าสำเร็จรูปโชว์ใน select, ค่าอื่นโชว์ช่องกรอกเอง
+    function setReserveUi(selId, inpId, pct) {
+        var sel = $(selId), inp = $(inpId);
+        if (!sel || !inp) return;
+        var isPreset = pct === 0 || (pct > 0 && pct <= 80 && pct % 10 === 0);
+        if (isPreset) {
+            sel.value = String(pct);
+            inp.hidden = true;
+        } else {
+            sel.value = 'custom';
+            inp.hidden = false;
+            inp.value = pct;
+        }
+    }
+
     function syncSizingControls() {
         document.querySelectorAll('#sizing-mode .opt').forEach(function (b) {
             b.classList.toggle('active', b.dataset.mode === state.sizingMode);
@@ -316,7 +331,7 @@
         $('sizing-size-val').textContent = state.sizingSize + ' kWp';
         $('sizing-battery').value = state.sizingBattery;
         $('sizing-battery-val').textContent = state.sizingBattery + ' kWh';
-        $('sizing-reserve').value = String(state.sizingReservePct || 0);
+        setReserveUi('sizing-reserve', 'sizing-reserve-custom', state.sizingReservePct || 0);
     }
 
     function renderSizing() {
@@ -675,7 +690,7 @@
         $('sav-size-val').textContent = state.savSize + ' kWp';
         $('sav-battery').value = state.savBattery;
         $('sav-battery-val').textContent = state.savBattery + ' kWh';
-        $('sav-reserve').value = String(state.savReservePct || 0);
+        setReserveUi('sav-reserve', 'sav-reserve-custom', state.savReservePct || 0);
     }
 
     function renderSavings() {
@@ -1233,8 +1248,21 @@
             renderSizing();
         });
         $('sizing-reserve').addEventListener('change', function (e) {
+            if (e.target.value === 'custom') {
+                $('sizing-reserve-custom').hidden = false;
+                $('sizing-reserve-custom').focus();
+                return;
+            }
+            $('sizing-reserve-custom').hidden = true;
             state.sizingReservePct = parseInt(e.target.value, 10) || 0;
             renderSizing();
+        });
+        $('sizing-reserve-custom').addEventListener('input', function (e) {
+            var v = parseFloat(e.target.value);
+            if (isNaN(v)) return;
+            state.sizingReservePct = Math.min(100, Math.max(0, v));
+            clearTimeout(setReserveUi._s);
+            setReserveUi._s = setTimeout(renderSizing, 200);
         });
         $('sizing-month').addEventListener('change', function (e) {
             state.settings.monthOverride = e.target.value ? parseInt(e.target.value, 10) : null;
@@ -1278,8 +1306,21 @@
             renderSavings();
         });
         $('sav-reserve').addEventListener('change', function (e) {
+            if (e.target.value === 'custom') {
+                $('sav-reserve-custom').hidden = false;
+                $('sav-reserve-custom').focus();
+                return;
+            }
+            $('sav-reserve-custom').hidden = true;
             state.savReservePct = parseInt(e.target.value, 10) || 0;
             renderSavings();
+        });
+        $('sav-reserve-custom').addEventListener('input', function (e) {
+            var v = parseFloat(e.target.value);
+            if (isNaN(v)) return;
+            state.savReservePct = Math.min(100, Math.max(0, v));
+            clearTimeout(setReserveUi._v);
+            setReserveUi._v = setTimeout(renderSavings, 200);
         });
 
         $('btn-export-xlsx').addEventListener('click', exportXlsx);

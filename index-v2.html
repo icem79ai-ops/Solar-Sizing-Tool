@@ -149,7 +149,9 @@ window.addEventListener('unhandledrejection', function (e) {
             <option value="60">60%</option>
             <option value="70">70%</option>
             <option value="80">80% (วนใช้ไม่ได้เลย)</option>
+            <option value="custom">กำหนดเอง…</option>
           </select>
+          <input type="number" id="sizing-reserve-custom" min="0" max="100" step="1" value="0" style="width:110px" hidden>
           <button class="btn" id="btn-batt-recommend">✨ แนะนำความจุแบต</button>
         </div>
         <div class="strip-group">
@@ -251,7 +253,9 @@ window.addEventListener('unhandledrejection', function (e) {
           <option value="60">60%</option>
           <option value="70">70%</option>
           <option value="80">80% (วนใช้ไม่ได้เลย)</option>
+          <option value="custom">กำหนดเอง…</option>
         </select>
+        <input type="number" id="sav-reserve-custom" min="0" max="100" step="1" value="0" style="width:110px" hidden>
       </div>
       <p class="caption" id="save-basis-caption"></p>
     </div>
