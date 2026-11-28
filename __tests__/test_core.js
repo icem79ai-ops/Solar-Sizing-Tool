@@ -216,6 +216,19 @@ ok('PRICE: deye1 @8kWp ตรงจุด = 254,430', near(Core.solarCost(8, { p
     ok('BATT/FLAT: simulateScenario รายงาน charge=0 discharge=0',
         scenF.batteryChargeKwh === 0 && scenF.batteryDischargeKwh === 0,
         scenF.batteryChargeKwh + ' / ' + scenF.batteryDischargeKwh.toFixed(1));
+
+    // แนะนำแบตเมื่อไม่ผ่านเกณฑ์: เหตุผลต้องละเอียด + มีขนาด "ไม่สนเกณฑ์ 10 ปี" ให้
+    const recFlat = Core.recommendBattery(flat, 5, { settings: S });
+    ok('BATT/REJ: ไม่มีไฟเหลือ → เหตุผลระบุชัด (ไม่ผลิตเกินโหลด)',
+        recFlat.bestCapacityKwh === 0 && /ไม่ผลิตเกินโหลด/.test(recFlat.note), recFlat.note.slice(0, 70));
+    ok('BATT/REJ: ไม่มีขนาดที่ควรติดแม้ไม่สนเกณฑ์ 10 ปี (ประโยชน์ ~0)', recFlat.bestAnywayCapacityKwh === 0,
+        String(recFlat.bestAnywayCapacityKwh));
+    const recSlow = Core.recommendBattery(flat, 15, { settings: S, batteryPricePerKwh: 300000 });
+    ok('BATT/REJ: มีไฟเหลือแต่คืนทุนช้ากว่า 10 ปี → เหตุผลระบุชัด',
+        recSlow.bestCapacityKwh === 0 && /ช้ากว่าเกณฑ์ 10 ปี/.test(recSlow.note), recSlow.note.slice(0, 70));
+    ok('BATT/REJ: ยังแนะนำขนาดดีที่สุดแบบไม่สนเกณฑ์ (bestAnyway)',
+        recSlow.bestAnywayCapacityKwh > 0 && isFinite(recSlow.bestAnywayPaybackMonths),
+        recSlow.bestAnywayCapacityKwh + ' kWh @ ' + (recSlow.bestAnywayPaybackMonths / 12).toFixed(1) + 'y');
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

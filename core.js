@@ -612,7 +612,10 @@
             for (var c = 0; c < BATT_GRID.length; c++) caps.push(BATT_GRID[c]);
         }
 
-        var base = simulateScenario(data, sizeKwp, mergeOpts(opts, { mode: 'ongrid', settings: settings })).savings;
+        var baseScen = simulateScenario(data, sizeKwp, mergeOpts(opts, { mode: 'ongrid', settings: settings }));
+        var base = baseScen.savings;
+        var surplus = baseScen.genKwh - baseScen.selfUsedKwh; // ไฟที่ผลิตเกินใช้เอง = เพดานของไฟที่แบตจะเก็บได้
+        var periodDays = baseScen.periodDays || 30;
 
         var candidates = [];
         for (var i = 0; i < caps.length; i++) {
@@ -627,6 +630,7 @@
             candidates.push({
                 capacityKwh: cap, savingsThb: scen.savings, addonThb: addon,
                 batteryInvestThb: batteryInvest, wasteKwh: scen.wasteKwh,
+                chargeKwh: scen.batteryChargeKwh,
                 batteryPaybackMonths: batteryPayback, fullPaybackMonths: fullPayback
             });
         }
@@ -636,7 +640,27 @@
         });
         var best = null, note = '';
         if (!meaningful.length) {
-            note = 'ไม่แนะนำให้ติดแบตเตอรี่เพิ่ม: โซลาร์ไม่ผลิตเกินโหลดพอจะเก็บ หรือ ค่าคืนทุนของแบตช้ากว่า 10 ปี';
+            // เหตุผลแบบละเอียด: ระบุว่าเป็นเคสไหน (ไม่ผลิตเกิน / ประโยชน์น้อย / คืนทุนช้าเกิน 10 ปี) พร้อมตัวเลข
+            var maxCharge = 0, maxAddonC = -Infinity, bestPaybackC = Infinity;
+            for (var q = 0; q < candidates.length; q++) {
+                if (candidates[q].chargeKwh > maxCharge) maxCharge = candidates[q].chargeKwh;
+                if (candidates[q].addonThb > maxAddonC) maxAddonC = candidates[q].addonThb;
+                if (isFinite(candidates[q].batteryPaybackMonths) && candidates[q].batteryPaybackMonths < bestPaybackC) {
+                    bestPaybackC = candidates[q].batteryPaybackMonths;
+                }
+            }
+            var surplusPerDay = surplus / periodDays;
+            if (surplusPerDay < 0.05) {
+                note = '❌ โซลาร์ไม่ผลิตเกินโหลดพอจะเก็บ — ไฟเหลือหลังใช้เองเพียง ~' + surplusPerDay.toFixed(2) +
+                    ' kWh/วัน แบตจึงเก็บได้แทบเป็นศูนย์ (ต้องเพิ่มขนาดโซลาร์ให้ผลิตเกินโหลดกลางวันก่อน)';
+            } else if (maxAddonC < 50) {
+                note = '❌ มีไฟเหลือให้เก็บ ~' + (maxCharge / periodDays).toFixed(1) +
+                    ' kWh/วัน แต่ช่วยประหยัดได้ไม่ถึง 50 ฿/เดือน — ไม่คุ้มติดแบต';
+            } else {
+                note = '⚠️ มีไฟเหลือให้เก็บ ~' + (maxCharge / periodDays).toFixed(1) +
+                    ' kWh/วัน แต่คืนทุนเฉพาะแบตดีที่สุด ~' + (bestPaybackC / 12).toFixed(1) +
+                    ' ปี ช้ากว่าเกณฑ์ 10 ปี — จึงไม่แนะนำตามเกณฑ์คุ้มทุน';
+            }
         } else {
             var maxAddon = -Infinity;
             for (var k = 0; k < meaningful.length; k++) if (meaningful[k].addonThb > maxAddon) maxAddon = meaningful[k].addonThb;
@@ -654,6 +678,22 @@
                 fmtMoney(best.addonThb) + ' บาท/เดือน (เทียบ On-Grid ขนาดเดียวกัน)';
         }
 
+        // แนะนำแบบ "ไม่สนเกณฑ์คืนทุน 10 ปี" สำหรับผู้ใช้ไฟที่ยังต้องการติดแบตอยู่ดี (เช่น เพื่อสำรองไฟดับ)
+        var wantAnyway = candidates.filter(function (cnd) {
+            return cnd.addonThb >= 50 && isFinite(cnd.batteryPaybackMonths);
+        });
+        var bestAnyway = null;
+        if (wantAnyway.length) {
+            var maxAddonW = -Infinity;
+            for (var w = 0; w < wantAnyway.length; w++) if (wantAnyway[w].addonThb > maxAddonW) maxAddonW = wantAnyway[w].addonThb;
+            var reachW = wantAnyway.filter(function (cnd) { return cnd.addonThb >= 0.9 * maxAddonW; });
+            bestAnyway = reachW.reduce(function (a, b) {
+                if (b.batteryPaybackMonths !== a.batteryPaybackMonths)
+                    return b.batteryPaybackMonths < a.batteryPaybackMonths ? b : a;
+                return b.capacityKwh > a.capacityKwh ? b : a;
+            });
+        }
+
         return {
             bestCapacityKwh: best ? best.capacityKwh : 0,
             addonSavingsThb: best ? best.addonThb : 0,
@@ -662,6 +702,9 @@
             batteryPaybackMonths: best ? best.batteryPaybackMonths : Infinity,
             fullPaybackMonths: best ? best.fullPaybackMonths : Infinity,
             wasteKwh: best ? best.wasteKwh : 0,
+            bestAnywayCapacityKwh: bestAnyway ? bestAnyway.capacityKwh : 0,
+            bestAnywayAddonThb: bestAnyway ? bestAnyway.addonThb : 0,
+            bestAnywayPaybackMonths: bestAnyway ? bestAnyway.batteryPaybackMonths : Infinity,
             note: note, candidates: candidates,
             solarSizeKwp: sizeKwp, ongridSavingsThb: base
         };

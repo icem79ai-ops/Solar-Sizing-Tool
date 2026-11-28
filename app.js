@@ -608,26 +608,39 @@
 
     function renderBattRec(rec) {
         var box = $('batt-recommend-box');
-        if (!rec || rec.bestCapacityKwh <= 0) {
-            box.hidden = false;
-            box.innerHTML = '<b>🔋 ' + rec.note + '</b>';
-            return;
-        }
+        box.hidden = false;
+        // จุดโฟกัสในตาราง/กราฟ: ขนาดแนะนำตามเกณฑ์ หรือ ขนาด "ไม่สนเกณฑ์ 10 ปี" ถ้าไม่ผ่านเกณฑ์
+        var bestMark = rec.bestCapacityKwh > 0 ? rec.bestCapacityKwh : (rec.bestAnywayCapacityKwh || 0);
         var dur = rec.candidates;
-        var best = rec.bestCapacityKwh;
+
+        var head;
+        if (rec.bestCapacityKwh > 0) {
+            head = '<b>🔋 แบตเตอรี่ที่แนะนำ: ' + fmtNum(rec.bestCapacityKwh, 0) + ' kWh ' +
+                '(+ ~' + money(rec.addonSavingsThb) + ' บาท/เดือน เทียบ On-Grid ขนาดเดียวกัน)</b>' +
+                '<p>' + rec.note + '</p>';
+        } else {
+            // ไม่ผ่านเกณฑ์ — ชี้เหตุผลให้ชัด (เคสไหน พร้อมตัวเลข) แล้วเสนอขนาดดีที่สุดแบบไม่สนเกณฑ์ 10 ปี
+            head = '<b>🔋 ไม่แนะนำให้ติดแบตเตอรี่เพิ่ม</b>' +
+                '<p>' + rec.note + '</p>';
+            if (rec.bestAnywayCapacityKwh > 0) {
+                head += '<p>✅ <b>ถ้าผู้ใช้ไฟยังต้องการติดแบตอยู่ดี (ไม่สนเกณฑ์คืนทุน 10 ปี): แนะนำความจุ ' +
+                    fmtNum(rec.bestAnywayCapacityKwh, 0) + ' kWh</b> — เพิ่มประหยัด ~' + money(rec.bestAnywayAddonThb) +
+                    ' บาท/เดือน · คืนทุนเฉพาะแบต ' + years(rec.bestAnywayPaybackMonths) + ' (ช้ากว่าเกณฑ์ 10 ปี — ติดเพื่อความต้องการ เช่น สำรองไฟดับ)</p>';
+            } else {
+                head += '<p>ไม่มีความจุใดให้ประโยชน์ถึง 50 ฿/เดือนเลย — ถ้ายังต้องการแบตเพื่อสำรองไฟดับ ให้พิจารณาจากโหลดสำรองที่ต้องการใช้โดยตรง ไม่ใช่เหตุผลความคุ้มทุน</p>';
+            }
+        }
+
         var rows = dur.map(function (c) {
-            var of = Math.round(c.capacityKwh / best * 100);
-            var cls = Math.abs(c.capacityKwh - best) < 0.001 ? ' class="rec"' : '';
+            var of = bestMark > 0 ? Math.round(c.capacityKwh / bestMark * 100) : 0;
+            var cls = Math.abs(c.capacityKwh - bestMark) < 0.001 ? ' class="rec"' : '';
             return '<tr' + cls + '><td>' + fmtNum(c.capacityKwh, 1) + ' kWh (' + of + '%)</td><td>' + money(c.addonThb) + '</td><td>' +
                 years(c.batteryPaybackMonths) + '</td><td>' + fmtNum(c.wasteKwh, 0) + ' kWh</td></tr>';
         }).join('');
-        box.hidden = false;
-        box.innerHTML =
-            '<b>🔋 แบตเตอรี่ที่แนะนำ: ' + fmtNum(rec.bestCapacityKwh, 0) + ' kWh ' +
-            '(+ ~' + money(rec.addonSavingsThb) + ' บาท/เดือน เทียบ On-Grid ขนาดเดียวกัน)</b>' +
-            '<p>' + rec.note + '</p>' +
+        box.innerHTML = head +
             '<table><thead><tr><th>ความจุ</th><th>เพิ่มประหยัด</th><th>คืนทุนเฉพาะแบต</th><th>เหลือทิ้ง</th></tr></thead>' +
             '<tbody>' + rows + '</tbody></table>';
+
         $('sizing-chart-extra').innerHTML = '';
         var canv = document.createElement('canvas');
         canv.id = 'batt-chart';
@@ -638,7 +651,7 @@
                 label: 'เพิ่มประหยัด (บาท/เดือน)', data: dur.map(function (c) { return c.addonThb; }),
                 borderColor: '#b06bff', backgroundColor: 'rgba(176,107,255,.15)',
                 fill: true, tension: .3, pointRadius: function (ctx) {
-                    return ctx.dataIndex === rec.candidates.findIndex(function (c) { return c.capacityKwh === rec.bestCapacityKwh; }) ? 6 : 2;
+                    return ctx.dataIndex === rec.candidates.findIndex(function (c) { return c.capacityKwh === bestMark; }) ? 6 : 2;
                 }
             }]
         }, 'เพิ่มประหยัดจากการติดแบตต่อความจุ (Hybrid)');
